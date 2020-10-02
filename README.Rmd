@@ -1,0 +1,52 @@
+---
+output: github_document
+params:
+    className: "CYOP Submission"
+    courseName: "HarvardX PH125.9x"
+    repoName: "HarvardX"
+    repoOwner: "Nigel-Brown"
+    packages: !r c('here', 'knitr', 'rmarkdown', 'tidyverse', 'usethis')
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "README-"
+)
+```
+
+```{js,echo=FALSE}
+code .sourceCode {
+    white-space: pre-wrap;       /* Since CSS 2.1 */
+    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+    white-space: -pre-wrap;      /* Opera 4-6 */
+    white-space: -o-pre-wrap;    /* Opera 7 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    overflow-wrap: break-word;
+}
+```
+
+
+```{r settings,echo=FALSE, include=FALSE}
+className <- params$className
+courseName <-  params$courseName
+repo <- params$repoName
+owner <- params$repoOwner
+packages <- sort(params$packages)
+```
+
+# `r courseName`  `r className`
+
+This is a repo for the `r courseName` Chose Your Own Project Submission by `r owner`.
+
+The submission for this project is three files:
+
+1. A report in PDF format
+1. A report in Rmd format
+1. A script in R format that performs a supervised machine learning task
+
+This files may be found in the directory titled Submission.
+The dataset utilized in this project is located in the data directory.
