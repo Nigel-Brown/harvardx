@@ -39,7 +39,7 @@ lhd <- data %>% filter(district %in% greater_london_districts & cat_type == "A" 
 # Source: Office for National Statistics licensed under the Open Government Licence v.3.0
 
 url <- "https://www.freemaptools.com/download/full-postcodes/ukpostcodes.zip"
-tmp <- tempfile()11
+tmp <- tempfile()
 download.file(url, tmp)
 pc <- read_csv(unz(tmp, 'ukpostcodes.csv'))
 pc <- pc %>% select(-id)
