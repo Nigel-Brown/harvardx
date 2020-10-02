@@ -45,6 +45,6 @@ pc <- read_csv(unz(tmp, 'ukpostcodes.csv'))
 pc <- pc %>% select(-id)
 lhd <- lhd %>% 
   left_join(pc, by = 'postcode')
-head(lhd)
+lhd$new_build <- ifelse(lhd$new_build == "Y", TRUE, FALSE)
 
 write_rds(lhd, here::here('data', 'lhd.rds'), compress = "xz")
