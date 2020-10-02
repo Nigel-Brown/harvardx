@@ -7,6 +7,7 @@ library(tidyverse)
 library(tidymodels)
 library(scales)
 
+
 # load the dataset lhd
 lhd <- read_rds(here::here('data', 'lhd.rds'))
 
@@ -15,6 +16,8 @@ dim(lhd)
 
 # EDA
 summary(lhd)  
+
+
 
 
 
