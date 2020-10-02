@@ -47,4 +47,7 @@ lhd <- lhd %>%
   left_join(pc, by = 'postcode')
 lhd$new_build <- ifelse(lhd$new_build == "Y", TRUE, FALSE)
 
+# Remove properties without spatial coords
+lhd <- lhd %>% filter(!is.na(latitude))
+
 write_rds(lhd, here::here('data', 'lhd.rds'), compress = "xz")
