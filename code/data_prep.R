@@ -13,11 +13,12 @@ data = read_csv(url, col_names = c("trans_id", "price", "trans_date", "postcode"
                                    "street", "locality", "town", "district", "county", "cat_type", "record_status"))
 
 greater_london_districts <- c("BARKING AND DAGENHAM","BARNET", "BEXLEY", "BRENT", "BROMLEY",
-                              "CAMDEN", "CROYDON", "EALING", "ENFIELD", "GREENWICH", "HACKNEY",
-                              "HAMMERSMITH AND FULHAM", "HARINGEY", "HARROW", "HAVERING", "HILLINGDON",
-                              "HOUNSLOW", "ISLINGTON", "KENSINGTON AND CHELSEA", "KINGSTON UPON THAMES", "LAMBETH",
-                              "LEWISHAM", "MERTON", "NEWHAM", "REDBRIDGE", "RICHMOND", "SOUTHWARK", "SUTTON",
-                              "TOWER HAMLETS", "WALTHAM FOREST", "WANDSWORTH", "WESTMINISTER")
+                              "CAMDEN", "CITY OF LONDON", "CROYDON", "EALING", "ENFIELD", 
+                              "GREENWICH","HACKNEY", "HAMMERSMITH AND FULHAM", "HARINGEY", "HARROW", 
+                              "HAVERING", "HILLINGDON","HOUNSLOW", "ISLINGTON", "KENSINGTON AND CHELSEA", 
+                              "KINGSTON UPON THAMES","LAMBETH","LEWISHAM", "MERTON", "NEWHAM", 
+                              "REDBRIDGE", "RICHMOND UPON THAMES", "SOUTHWARK", "SUTTON","TOWER HAMLETS", 
+                              "WALTHAM FOREST", "WANDSWORTH", "WESTMINISTER")
 
 data$saon <- ifelse(is.na(data$saon), "", data$saon)
 
