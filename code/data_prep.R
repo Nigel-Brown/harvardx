@@ -35,14 +35,6 @@ lhd <- lhd %>% filter(!postcode %in% c('SY3 6DQ', 'B74 2QT', 'NP19 0BG', 'CW8 1N
 # make price an integer to save disk space
 lhd$price <- as.integer(lhd$price)
 
-lhd %>% filter(grepl("HARROW", district)) %>% 
-  group_by(district) %>% 
-  summarise(n = n())
-
-
-
-
-
 #  https://www.ons.gov.uk/methodology/geography/licences
 # You may re-use this information (not including logos or Northern Ireland data) free of charge in any format or medium, under the terms of the relevant # # data owners' licence. 
 # In addition, the following attribution statements must be acknowledged or displayed whenever the owners data is used:
