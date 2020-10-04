@@ -15,18 +15,24 @@ data = read_csv(url, col_names = c("trans_id", "price", "trans_date", "postcode"
 greater_london_districts <- c("BARKING AND DAGENHAM","BARNET", "BEXLEY", "BRENT", "BROMLEY",
                               "CAMDEN", "CROYDON", "EALING", "ENFIELD", "GREENWICH", "HACKNEY",
                               "HAMMERSMITH AND FULHAM", "HARINGEY", "HARROW", "HAVERING", "HILLINGDON",
-                              "HOUNSLOW", "ISLINGTON", "KENSINGTON AND CHELSEA", "KINGSTON", "LAMBETH",
+                              "HOUNSLOW", "ISLINGTON", "KENSINGTON AND CHELSEA", "KINGSTON UPON THAMES", "LAMBETH",
                               "LEWISHAM", "MERTON", "NEWHAM", "REDBRIDGE", "RICHMOND", "SOUTHWARK", "SUTTON",
                               "TOWER HAMLETS", "WALTHAM FOREST", "WANDSWORTH", "WESTMINISTER")
 
 data$saon <- ifelse(is.na(data$saon), "", data$saon)
 
-lhd <- data %>% filter(district %in% greater_london_districts & cat_type == "A" & estate_type == "F") %>% 
+lhd <- data %>% filter(district %in% greater_london_districts 
+                       & cat_type == "A"
+                       & estate_type == "F") %>% 
   mutate(trans_date = ymd(trans_date),
          address = paste0(paon , saon ,' ', street)) %>% 
   select(-c('cat_type', 'town', 'county', 'paon', 'saon', 'street', 'locality', 'record_status', 'estate_type', 'trans_id'))
 
+# Remove known errors in the data
+lhd <- lhd %>% filter(!postcode %in% c('SY3 6DQ', 'B74 2QT', 'NP19 0BG', 'CW8 1NB')) 
 
+# make price an integer to save disk space
+lhd$price <- as.integer(lhd$price)
 
 #  https://www.ons.gov.uk/methodology/geography/licences
 # You may re-use this information (not including logos or Northern Ireland data) free of charge in any format or medium, under the terms of the relevant # # data owners' licence. 
