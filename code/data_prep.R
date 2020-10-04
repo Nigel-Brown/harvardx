@@ -18,7 +18,7 @@ greater_london_districts <- c("BARKING AND DAGENHAM","BARNET", "BEXLEY", "BRENT"
                               "HAVERING", "HILLINGDON","HOUNSLOW", "ISLINGTON", "KENSINGTON AND CHELSEA", 
                               "KINGSTON UPON THAMES","LAMBETH","LEWISHAM", "MERTON", "NEWHAM", 
                               "REDBRIDGE", "RICHMOND UPON THAMES", "SOUTHWARK", "SUTTON","TOWER HAMLETS", 
-                              "WALTHAM FOREST", "WANDSWORTH", "WESTMINISTER")
+                              "WALTHAM FOREST", "WANDSWORTH", "WESTMINSTER")
 
 data$saon <- ifelse(is.na(data$saon), "", data$saon)
 
@@ -34,6 +34,14 @@ lhd <- lhd %>% filter(!postcode %in% c('SY3 6DQ', 'B74 2QT', 'NP19 0BG', 'CW8 1N
 
 # make price an integer to save disk space
 lhd$price <- as.integer(lhd$price)
+
+lhd %>% filter(grepl("HARROW", district)) %>% 
+  group_by(district) %>% 
+  summarise(n = n())
+
+
+
+
 
 #  https://www.ons.gov.uk/methodology/geography/licences
 # You may re-use this information (not including logos or Northern Ireland data) free of charge in any format or medium, under the terms of the relevant # # data owners' licence. 
