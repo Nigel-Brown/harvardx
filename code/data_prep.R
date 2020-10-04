@@ -56,4 +56,8 @@ lhd$new_build <- ifelse(lhd$new_build == "Y", TRUE, FALSE)
 # Remove properties without spatial coords
 lhd <- lhd %>% filter(!is.na(latitude))
 
+# write the dataset to disk
 write_rds(lhd, here::here('data', 'lhd.rds'), compress = "xz")
+
+# clean up memory
+rm('data', 'greater_london_districts', 'lhd', 'pc', 'tmp','url')
