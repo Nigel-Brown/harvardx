@@ -18,7 +18,7 @@ greater_london_districts <- c("BARKING AND DAGENHAM","BARNET", "BEXLEY", "BRENT"
                               "HAVERING", "HILLINGDON","HOUNSLOW", "ISLINGTON", "KENSINGTON AND CHELSEA", 
                               "KINGSTON UPON THAMES","LAMBETH","LEWISHAM", "MERTON", "NEWHAM", 
                               "REDBRIDGE", "RICHMOND UPON THAMES", "SOUTHWARK", "SUTTON","TOWER HAMLETS", 
-                              "WALTHAM FOREST", "WANDSWORTH", "WESTMINSTER")
+                              "WALTHAM FOREST", "WANDSWORTH", "CITY OF WESTMINSTER")
 
 data$saon <- ifelse(is.na(data$saon), "", data$saon)
 
