@@ -35,6 +35,15 @@ lhd <- lhd %>% filter(!postcode %in% c('SY3 6DQ', 'B74 2QT', 'NP19 0BG', 'CW8 1N
 # make price an integer to save disk space
 lhd$price <- as.integer(lhd$price)
 
+# create year and month columns from the transaction date
+lhd <- lhd %>% 
+  mutate(transaction_year = as.integer(year(trans_date)),
+         transaction_month = as.integer(month(trans_date)))
+
+# create a 10 year dataset drop data from 2020 as it is an incomplete year
+lhd <- lhd %>% 
+  filter(transaction_year >= 2009 & transaction_year != 2020)
+
 #  https://www.ons.gov.uk/methodology/geography/licences
 # You may re-use this information (not including logos or Northern Ireland data) free of charge in any format or medium, under the terms of the relevant # # data owners' licence. 
 # In addition, the following attribution statements must be acknowledged or displayed whenever the owners data is used:
