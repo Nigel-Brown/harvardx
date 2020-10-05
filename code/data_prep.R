@@ -53,7 +53,7 @@ pc <- pc %>% select(-id)
 lhd <- lhd %>% 
   left_join(pc, by = 'postcode')
 lhd$new_build <- ifelse(lhd$new_build == "Y", TRUE, FALSE)
-
+lhd$district <- ifelse(lhd$district == "CITY OF WESTMINSTER", 'WESTMINSTER', lhd$district)
 # Remove properties without spatial coords
 lhd <- lhd %>% filter(!is.na(latitude))
 
@@ -62,3 +62,4 @@ write_rds(lhd, here::here('data', 'lhd.rds'), compress = "xz")
 
 # clean up memory
 rm('data', 'greater_london_districts', 'lhd', 'pc', 'tmp','url')
+
