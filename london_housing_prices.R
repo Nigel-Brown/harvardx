@@ -28,23 +28,18 @@ cols <- sapply(lhd, is.character)
 lhd[,cols] <- lapply(lhd[,cols], as.factor)
 
 lhd <- lhd %>% 
-  mutate(type_enum = case_when(property_type == 'T' ~ 1L,
-                               property_type == 'D' ~ 2L,
-                               property_type == 'S' ~ 3L,
-                               property_type == 'F' ~ 4L,
-                               property_type == 'O' ~ 5L),
-         outward_code = as.factor(substr(postcode, 1, 3)),
-         numeric_dt = as.numeric(trans_date))
+  mutate(outward_code = as.factor(substr(postcode, 1, 3))) %>% 
+  select(-trans_date)
 
 
 sum_price <- lhd %>% 
   group_by(transaction_year, district, property_type) %>% 
-  summarise(avg_price = mean(price),
-            min_price = min(price),
-            max_price = max(price))
+  summarise(yr_dist_avg_price = mean(price),
+            yr_dist_min_price = min(price),
+            yr_dist_max_price = max(price))
 
 lhd <- inner_join(lhd, sum_price)
-glimpse(lhd)
+
 
 lhd %>% 
   filter(transaction_year %in% c("2009", "2019") & property_type == "F") %>% 
@@ -92,14 +87,27 @@ lhd %>%
     caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
   )
 
+lhd %>% 
+  filter(transaction_year %in% c("2009", "2019") & property_type == "S") %>% 
+  ggplot(aes(district, price)) +
+  geom_boxplot(aes(color = district), show.legend = FALSE) +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
+  scale_y_log10(labels = comma) +
+  facet_wrap(~transaction_year, nrow = 2) +
+  labs(
+    title = "Movement of semi-detached house prices per district 2009 - 2019",
+    subtitle = "Kensington and Chelsea has the biggest jump in prices",
+    x = NULL,
+    y = "Price (log10)",
+    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
+  )
 
-lhd$trans_dt <- as.numeric(as.POSIXct(cab_small_sample$pickup_datetime,
-                                                    format = '%d%b%y'))
-cab_small_sample
+# Many levels do the factorized columns have ?
 nlevels(lhd$outward_code)
 nlevels(lhd$district)
 nlevels(lhd$postcode)
 nlevels(lhd$address)
+
 # Examine the dimensions of the data
 dim(lhd)
 
@@ -210,6 +218,21 @@ lhd %>%
     caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
   )
 
+# are the sales evenly spread across Greater London ?
+lhd %>% 
+  group_by(district, property_type) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(fct_reorder(district, -n), n, fill = property_type)) +
+  geom_col() +
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x  = element_text(angle=-90)) +
+  labs(
+    title = "Number of observed sales by district",
+    x= NULL,
+    y = "Number of Properties",
+    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
+  )
+
 
 # plot distribution of house prices
 lhd %>% 
@@ -223,23 +246,36 @@ lhd %>%
     y = 'count'
   )
 
-glimpse(lhd)
 
-lhd_feature <- lhd %>% 
-  select(price, transaction_month, transaction_year, new_build, type_enum, numeric_dt, latitude, longitude, avg_price)
-
-# plot correlation coeffs
-library(corrplot)
-
-corrplot(cor(lhd_feature), type = 'upper', order="hclust",
-         col=c("black", "white"),
-         bg="lightblue",tl.col = "black")
+  
 
 
 
-qplot(transaction_year, 
-      price, 
-      data = lhd, 
-      geom = c("point", "smooth"), 
-      alpha = I(1 / 5))
+library(tidymodels)
+
+
+# Set the random number stream using `set.seed()` so that the results can be 
+# reproduced later. 
+set.seed(123, sample.kind = 'Rounding')
+
+# Save the split information for an 80/20 split of the data
+lhd_split <- initial_split(lhd, prob = 0.80, strata = price)
+lhd_split
+
+lhd_train <- training(lhd_split)
+lhd_test  <-  testing(lhd_split)
+
+dim(lhd_train)
+
+simple_lhd <- 
+  recipe(price ~ outward_code + property_type + transaction_year,
+         data = lhd_train) %>%
+  step_log(price, base = 10) %>% 
+  step_dummy(all_nominal())
+
+simple_lhd <- prep(simple_lhd, training = lhd_train)
+bake(simple_lhd, new_data = lhd_train) %>% head()
+head(simple_lhd)
+
+
 
