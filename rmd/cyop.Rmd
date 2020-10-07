@@ -14,29 +14,32 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Introduction
+# Introduction
 
 The data is made from data sourced from [HM Land Registry](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) and [FreeMapTools](https://www.freemaptools.com/download-uk-postcode-lat-lng.htm)
 
 
 
-## Exploritory Data Analysis
+# Exploritory Data Analysis
 
-## Methods/Analysis
+# Methods/Analysis
 
-## Results
+# Results
 
-## Conclusion
+# Conclusion
 
 
-## Disclaimers
+# Disclaimers
 
 Contains HM Land Registry data © Crown copyright and database right 2020. This data is licensed under the [Open Government Licence v3.0](http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/)
 
-The disclaimer for the data downloaded from FreeMapTools
 
-Contains Ordnance Survey data © Crown copyright and database right 2020
-Contains Royal Mail data © Royal Mail copyright and database right 2020
+**FreeMapTools**
+
+Contains Ordnance Survey data © Crown copyright and database right 2020.
+
+Contains Royal Mail data © Royal Mail copyright and database right 2020.
+
 Source: Office for National Statistics licensed under the [Open Government Licence v3.0](http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/)
 
-## Appendix
+# Appendix
