@@ -1,0 +1,30 @@
+---
+title: "Choose your own project submission"
+author: "Nigel Brown"
+date: "10/7/2020"
+output: 
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The data is sourced from [HM Land Registry](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads)
+
+
+
+
+## Exploritory Data Analysis
+
+## Methods/Analysis
+
+## Results
+
+## Conclusion
