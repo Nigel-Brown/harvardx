@@ -1,0 +1,28 @@
+---
+title: "Choose Your Own Project Submission"
+author: "Nigel Brown"
+date: "10/7/2020"
+output: 
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Intoduction
+
+The goal of this project is to predict house prices in the Greater London Area using data that has been sourced from HM Land Registry as well as spatial data from [FreeMapTools](https://www.freemaptools.com/)
+
+
+## Methods/Analysis
+
+
+## Results
+
+
+## Conclusion
