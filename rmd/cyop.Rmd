@@ -12,15 +12,45 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+repos <- 'https://cran.rstudio.com/'
+if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
+if(!require(tidymodels)) install.packages("tidymodels", repos = repos)
+if(!require(scales)) install.packages("scales", repos = repos)
+
+
+# set theme for charts
+theme_set(theme_minimal())
+
+# load the dataset lhd
+lhd <- read_rds(here::here('data', 'lhd.rds'))
 ```
 
 # Introduction
 
-The data is made from data sourced from [HM Land Registry](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) and [FreeMapTools](https://www.freemaptools.com/download-uk-postcode-lat-lng.htm)
+The goal of this project is to predict house prices in the Greater London Area.
+
+The dataset for the project is made from data sourced from [HM Land Registry](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) and [FreeMapTools](https://www.freemaptools.com/download-uk-postcode-lat-lng.htm). This data has been processed into a dataset titled lhd.rds and consists of the following features:
+
+1. price 
+1. postcode
+1. property_type
+1. new_build
+1. district
+1. address
+1. transaction_year
+1. transaction_month
+1. latitude
+1. longitude
+1. outward_code
+
 
 
 
 # Exploritory Data Analysis
+
+```{r}
+dim(lhd)
+```
 
 # Methods/Analysis
 
