@@ -189,20 +189,6 @@ mapshot(map_under_100K, file = here::here('images', 'map_under_100K.png'))
 
 
 
-# Which type of property sold the most ?
-sales_by_type <- lhd %>% 
-  group_by(property_type) %>%
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  summarise(number_of_properties = n(), .groups = 'drop') %>% 
-  arrange(desc(number_of_properties)) 
-
-knitr::kable(sales_by_type)
-
 # which year had the most sales
 lhd %>% 
   mutate(year = year(trans_date)) %>% 
@@ -221,17 +207,39 @@ lhd %>%
 # are the sales evenly spread across Greater London ?
 lhd %>% 
   group_by(district, property_type) %>% 
+  mutate(property_type = 
+           case_when(property_type == 'T' ~ "Terraced",
+                     property_type == 'D' ~ "Detached",
+                     property_type == 'S' ~ "Semi-Detached",
+                     property_type == 'F' ~ "Flat/Maisonette",
+                     property_type == 'O' ~ "Other")) %>% 
   summarise(n = n()) %>% 
   ggplot(aes(fct_reorder(district, -n), n, fill = property_type)) +
-  geom_col() +
+  geom_col(color = "black") +
   scale_y_continuous(labels = comma) +
-  theme(axis.text.x  = element_text(angle=-90)) +
+  theme(axis.text.x  = element_text(angle=-90, hjust=0),
+        legend.position = "top") +
   labs(
     title = "Number of observed sales by district",
+    subtitle = "Terraced housing dominates the Greater London housing market",
     x= NULL,
     y = "Number of Properties",
     caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
   )
+
+# Which type of property sold the most ?
+sales_by_type <- lhd %>% 
+  group_by(property_type) %>%
+  mutate(property_type = 
+           case_when(property_type == 'T' ~ "Terraced",
+                     property_type == 'D' ~ "Detached",
+                     property_type == 'S' ~ "Semi-Detached",
+                     property_type == 'F' ~ "Flat/Maisonette",
+                     property_type == 'O' ~ "Other")) %>% 
+  summarise(number_of_properties = n(), .groups = 'drop') %>% 
+  arrange(desc(number_of_properties)) 
+
+knitr::kable(sales_by_type)
 
 
 # plot distribution of house prices
@@ -245,13 +253,6 @@ lhd %>%
     x = 'Price (log10)',
     y = 'count'
   )
-
-
-  
-
-
-
-library(tidymodels)
 
 
 # Set the random number stream using `set.seed()` so that the results can be 
@@ -277,5 +278,7 @@ simple_lhd <- prep(simple_lhd, training = lhd_train)
 bake(simple_lhd, new_data = lhd_train) %>% head()
 head(simple_lhd)
 
+
+glimpse(lhd)
 
 
