@@ -37,7 +37,7 @@ lhd <- lhd %>%
   mutate(outward_code = as.factor(substr(postcode, 1, 3))) %>% 
   select(-trans_date)
 
-# create number of tiimes sold feature
+# create number of times sold feature
 sum_price <- lhd %>% 
   group_by(address) %>% 
   summarise(num_of_sales = n())
