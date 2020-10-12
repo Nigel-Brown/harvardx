@@ -44,7 +44,7 @@ sum_price <- lhd %>%
 
 lhd <- inner_join(lhd, sum_price)
 
-# cleam up
+# clean up
 rm(sum_price)
 
 

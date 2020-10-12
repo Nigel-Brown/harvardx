@@ -45,7 +45,7 @@ lhd <- lhd %>%
   filter(transaction_year >= 2009 & transaction_year != 2020)
 
 # https://www.ons.gov.uk/methodology/geography/licences
-# You may re-use this information (not including logos or Northern Ireland data) free of charge in any format or medium, under the terms of the relevant # # data owners' licence. 
+# You may re-use this information (not including logos or Northern Ireland data) free of charge in any format or medium, under the terms of the relevant # # data owners' license. 
 # In addition, the following attribution statements must be acknowledged or displayed whenever the owners data is used:
 
 # Contains Ordnance Survey data © Crown copyright and database right 2020
