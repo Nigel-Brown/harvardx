@@ -195,6 +195,11 @@ map_under_100K <- under_100K %>%
 
 mapshot(map_under_100K, file = here::here('images', 'map_under_100K.png'))
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 01d8e48452e371a68ad7ed0d7af75069f491b778
 # which year had the most sales
 lhd %>% 
   group_by(transaction_year) %>%
@@ -259,6 +264,7 @@ lhd %>%
     y = NULL
   )
 
+
 lhd %>% 
   filter(num_of_sales <= 10) %>% 
   mutate(property_type = 
@@ -278,8 +284,6 @@ lhd %>%
     caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
   )
   
-
-
 # Set the random number stream using `set.seed()` so that the results can be 
 # reproduced later. 
 set.seed(123, sample.kind = 'Rounding')
@@ -300,5 +304,7 @@ lm_fit <-  lm_spec %>%
 # Random forest specification
 rf_spec %>%  rand_forest(mode = "regression") %>% 
   set_engine("ranger")
+
+glimpse(lhd)
 
 
