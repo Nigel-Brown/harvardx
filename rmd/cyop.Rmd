@@ -1,7 +1,7 @@
 ---
-title: "Choose your own project submission"
+title: "Greater London Housing Prices"
 author: "Nigel Brown"
-date: "10/7/2020"
+date: "2020/10/13"
 output: 
   pdf_document:
     toc: yes
@@ -29,13 +29,15 @@ lhd <- read_rds(here::here('data', 'lhd.rds'))
 
 The goal of this project is to predict house prices in the Greater London Area based on the type of property and the area of London that the property resides in.
 
-The dataset for the project is made from data sourced from [HM Land Registry](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) and [FreeMapTools](https://www.freemaptools.com/download-uk-postcode-lat-lng.htm). This data has been pre-processed into a dataset titled lhd.rds. The data chosen is from a 10 year period 2009-2019. The reason 2020 has been left out of the data is that is an incomplete year at the time of analysis. The data contains 4 different types of property detached; flats/maisonettes; semi-detached and terraced. It doesn't contain number of rooms or the area squared of the property, however some feature engineering is performed to try to improve results and enhance the data.
+The dataset for the project is made from data sourced from [HM Land Registry](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) and [FreeMapTools](https://www.freemaptools.com/download-uk-postcode-lat-lng.htm). This data has been pre-processed into a dataset titled lhd.rds. The data chosen is a 10 year period 2009-2019. The reason 2020 has been left out of the data is that is an incomplete year at the time of analysis. The data contains 4 different types of property detached; flats/maisonettes; semi-detached and terraced. It doesn't contain the number of rooms or the total area of the property, therefore a 2 bedroom flat is categorized the same as a 4 bedroom flat and a prediction can only be made on the property type of a given district. 
 
 The price paid data set from the HM Land Registry is joined together with spatial data to add latitude and longitude for the properties based on their postcodes. This will allow for mapping of the data.
 
 # Data Wrangling
 
 As a first step data, that is in logical form (true/false) is converted into integers 1 or 0. Next all columns containing character data are factorized.
+
+## Features added to the data
 Next a new feature is created based on the outward code contained in a postcode i.e the sub-district and another feature containing the number of times a property was observed to be sold in the 10 year time period is added.
 
 ```{r data_wrangling, echo = FALSE}
@@ -162,6 +164,54 @@ lhd %>%
     x = "Year",
     y = "Average sales price GBP",
     caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.')
+```
+
+## Is there a trend of which month most sales occur on ?
+```{r month_trend, echo=FALSE}
+lhd %>% 
+  group_by(transaction_month) %>% 
+  summarise(n = n(), .group = 'drop') %>% 
+  ggplot(aes(transaction_month, n)) + 
+  geom_col(show.legend = FALSE, fill = 'steelblue') +
+  scale_x_discrete(limits = c('Jan', "Feb", "Mar", "Apr", "May",
+                              "Jun", "Jul", "Aug", "Sep", "Oct",
+                              "Nov", "Dec")) +
+  labs(
+    title = "Summer months are the most popular for house purchases",
+    x = NULL,
+    y = "Number of sale transcations",
+    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
+  )
+```
+
+## Which are the 10 most expensive districts based on the number of properties sold over 3 million GBP?
+
+```{r top_10_expensive, echo=FALSE}
+top10_most_expensive_districts <- lhd %>% 
+  group_by(district) %>%
+  filter(price > 3000000) %>% 
+  summarise(properties_greater_than_3_million_GBP = n(), .groups = 'drop') %>% 
+  arrange(desc(properties_greater_than_3_million_GBP)) %>% 
+  slice(1:10)
+knitr::kable(top10_most_expensive_districts)
+```
+
+## How are properties sold for 3 million GBP or greater clustered ?
+
+```{r insert-image,fig.align='center', out.width = "500px", echo = FALSE}
+knitr::include_graphics(here::here('images', 'map_3_mill_plus.png'))
+```
+
+# Which are the 10 least expensive districts based on the number of properties under 100000 GBP?
+
+```{r least_expensive, echo=FALSE}
+least_expensive_districts <- lhd %>% 
+  group_by(district) %>%
+  filter(price < 100000) %>% 
+  summarise(properties_less_than_100K_GBP = n(), .groups = 'drop') %>% 
+  arrange(desc(properties_less_than_100K_GBP)) %>% 
+  slice(1:10)
+knitr::kable(least_expensive_districts)
 ```
 
 # Methods/Analysis
