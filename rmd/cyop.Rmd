@@ -196,13 +196,13 @@ top10_most_expensive_districts <- lhd %>%
 knitr::kable(top10_most_expensive_districts)
 ```
 
-## How are properties sold for 3 million GBP or greater clustered ?
+## How are properties sold for greater than 3 million GBP clustered ?
 
 ```{r insert-image,fig.align='center', out.width = "500px", echo = FALSE}
 knitr::include_graphics(here::here('images', 'map_3_mill_plus.png'))
 ```
 
-# Which are the 10 least expensive districts based on the number of properties under 100000 GBP?
+## Which are the 10 least expensive districts based on the number of properties under 100K GBP?
 
 ```{r least_expensive, echo=FALSE}
 least_expensive_districts <- lhd %>% 
@@ -212,7 +212,127 @@ least_expensive_districts <- lhd %>%
   arrange(desc(properties_less_than_100K_GBP)) %>% 
   slice(1:10)
 knitr::kable(least_expensive_districts)
+
 ```
+## How are properties under 100k GBP clustered ?
+
+```{r insert-image2,fig.align='center', out.width = "500px", echo = FALSE}
+knitr::include_graphics(here::here('images', 'map_under_100K.png'))
+```
+
+As can be seen from the above analysis some districts contain both top end and bottom end properties, such as Barnet and Haringey.
+
+
+## Are the sales evenly spread across Greater London ?
+
+```{r spread_of_sales, echo = FALSE}
+lhd %>% 
+  group_by(district, property_type) %>% 
+  mutate(property_type = 
+           case_when(property_type == 'T' ~ "Terraced",
+                     property_type == 'D' ~ "Detached",
+                     property_type == 'S' ~ "Semi-Detached",
+                     property_type == 'F' ~ "Flat/Maisonette",
+                     property_type == 'O' ~ "Other")) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(fct_reorder(district, -n), n, fill = property_type)) +
+  geom_col(color = "black") +
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x  = element_text(angle=-90, hjust=0),
+        legend.position = "top") +
+  labs(
+    title = "Number of observed sales by district",
+    subtitle = "Terraced housing dominates the Greater London housing market",
+    x= NULL,
+    y = "Number of Properties",
+    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
+  )
+```
+
+## Which type of property sold the most ?
+```{r most_sales_by_type, echo = FALSE}
+sales_by_type <- lhd %>% 
+  group_by(property_type) %>%
+  mutate(property_type = 
+           case_when(property_type == 'T' ~ "Terraced",
+                     property_type == 'D' ~ "Detached",
+                     property_type == 'S' ~ "Semi-Detached",
+                     property_type == 'F' ~ "Flat/Maisonette",
+                     property_type == 'O' ~ "Other")) %>% 
+  summarise(number_of_properties = n(), .groups = 'drop') %>% 
+  arrange(desc(number_of_properties)) 
+
+knitr::kable(sales_by_type)
+```
+
+## Which year had the most sales
+
+```{r sales_per_year, echo= FALSE}
+lhd %>% 
+  group_by(transaction_year) %>%
+  summarise(number_of_properties = n(), .groups = 'drop') %>% 
+  ggplot(aes(transaction_year, number_of_properties)) +
+  geom_col(fill = 'steelblue') + 
+  scale_x_continuous(breaks= pretty_breaks()) +
+  labs(
+    title = "Since 2014 the volume of house sales has been on the decline.",
+    x = NULL,
+    y = "Properties sold",
+    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
+  )
+```
+
+## How often do properties change ownership ?
+
+```{r num_of_sales, echo = FALSE}
+
+lhd %>% 
+  filter(num_of_sales <= 10) %>% 
+  mutate(property_type = 
+           case_when(property_type == 'T' ~ "Terraced",
+                     property_type == 'D' ~ "Detached",
+                     property_type == 'S' ~ "Semi-Detached",
+                     property_type == 'F' ~ "Flat/Maisonette",
+                     property_type == 'O' ~ "Other")) %>% 
+  ggplot(aes(num_of_sales)) +
+  geom_bar(aes(fill = property_type)) +
+  scale_x_discrete(name ="Observered sales", 
+                   limits=c("1","2","3", "4", "5", "6", "7", "8", "9" ,"10")) +
+  labs(
+    title = "5% of properties sold more than 3 times in the 10 year period.",
+    subtitle = "Properties sold more than 10 times excluded from plot.",
+    y = "Number of properties",
+    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
+  )
+```  
+
+## How are house prices distributed ?
+
+```{r price_dist, echo = FALSE, warning=FALSE}
+lhd %>% 
+  ggplot(aes(price)) + 
+  geom_histogram(bins = 20, fill = 'steelblue', color = 'black') + 
+  scale_x_log10(label = comma) +
+  scale_y_log10(label = comma) +
+  labs(
+    title = "House prices appear to be log-normally distributed",
+    x = 'Price (log10) GBP',
+    y = NULL
+  )
+
+```
+
+
+
+```{r}
+glimpse(lhd)
+nlevels(lhd$outward_code)
+nlevels(lhd$district)
+nlevels(lhd$postcode)
+nlevels(lhd$address)
+nlevels(lhd$property_type)
+```
+
 
 # Methods/Analysis
 
