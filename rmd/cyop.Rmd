@@ -11,7 +11,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.height = 9, fig.width = 7)
 repos <- 'https://cran.rstudio.com/'
 if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
 if(!require(tidymodels)) install.packages("tidymodels", repos = repos)
@@ -69,11 +69,11 @@ Now that the dataset is cleaned, an exploration of the data is performed. The da
 
 First the price movement for each property type is plotted 
 
-```{r prices_detached, echo = FALSE}
+```{r prices_detached, out.height = "2000px",out.width = "500px", echo = FALSE}
 lhd %>% 
   filter(transaction_year %in% c("2009", "2019") & property_type == "D") %>% 
   ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
+  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
   theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
   scale_y_log10(labels = comma) +
   facet_wrap(~transaction_year, nrow = 2) +
@@ -93,7 +93,7 @@ lhd %>%
 lhd %>% 
   filter(transaction_year %in% c("2009", "2019") & property_type == "F") %>% 
   ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
+  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
   theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
   scale_y_log10(labels = comma) +
   facet_wrap(~transaction_year, nrow = 2) +
@@ -110,7 +110,7 @@ lhd %>%
 lhd %>% 
   filter(transaction_year %in% c("2009", "2019") & property_type == "S") %>% 
   ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
+  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
   theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
   scale_y_log10(labels = comma) +
   facet_wrap(~transaction_year, nrow = 2) +
@@ -127,7 +127,7 @@ lhd %>%
 lhd %>% 
   filter(transaction_year %in% c("2009", "2019") & property_type == "T") %>% 
   ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
+  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
   theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
   scale_y_log10(labels = comma) +
   facet_wrap(~transaction_year, nrow = 2) +
@@ -170,7 +170,7 @@ lhd %>%
 ```{r month_trend, echo=FALSE}
 lhd %>% 
   group_by(transaction_month) %>% 
-  summarise(n = n(), .group = 'drop') %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
   ggplot(aes(transaction_month, n)) + 
   geom_col(show.legend = FALSE, fill = 'steelblue') +
   scale_x_discrete(limits = c('Jan', "Feb", "Mar", "Apr", "May",
@@ -234,7 +234,7 @@ lhd %>%
                      property_type == 'S' ~ "Semi-Detached",
                      property_type == 'F' ~ "Flat/Maisonette",
                      property_type == 'O' ~ "Other")) %>% 
-  summarise(n = n()) %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
   ggplot(aes(fct_reorder(district, -n), n, fill = property_type)) +
   geom_col(color = "black") +
   scale_y_continuous(labels = comma) +
@@ -267,7 +267,7 @@ knitr::kable(sales_by_type)
 
 ## Which year had the most sales
 
-```{r sales_per_year, echo= FALSE}
+```{r sales_per_year, fig.height = 6, echo= FALSE}
 lhd %>% 
   group_by(transaction_year) %>%
   summarise(number_of_properties = n(), .groups = 'drop') %>% 
@@ -308,7 +308,7 @@ lhd %>%
 
 ## How are house prices distributed ?
 
-```{r price_dist, echo = FALSE, warning=FALSE}
+```{r price_dist, echo = FALSE, warning = FALSE}
 lhd %>% 
   ggplot(aes(price)) + 
   geom_histogram(bins = 20, fill = 'steelblue', color = 'black') + 
@@ -335,6 +335,24 @@ nlevels(lhd$property_type)
 
 
 # Methods/Analysis
+
+The first step is to split the data into training and testing datasets. The split will be an 80/20 split with 80% of the data in the training set and the remaining 20% in the test set. The split of the data will be stratified by district, to ensure that the number of data points in the training data is equivalent to the proportions in the original data set.
+
+```{r split_data, echo = FALSE, warning = FALSE}
+# Set the random number stream using `set.seed()` so that the results can be 
+# reproduced later. 
+set.seed(123, sample.kind = 'Rounding')
+
+# Save the split information for an 80/20 split of the data, stratifying on price
+lhd_split <- initial_split(lhd, prob = 0.80, strata = district)
+
+lhd_train <- training(lhd_split)
+lhd_test  <-  testing(lhd_split)
+```
+
+
+
+
 
 # Results
 
