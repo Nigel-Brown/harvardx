@@ -155,7 +155,7 @@ lhd %>%
     title = "The increase average housing cost by type in Greater London",
     subtitle = "A distinct slowdown in the increase since 2017",
     x = "Year",
-    y = "Average sales price",
+    y = "Average sales price GBP",
     caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.')
 
 
@@ -167,8 +167,6 @@ top10_most_expensive_districts <- lhd %>%
   arrange(desc(properties_greater_than_3_million_GBP)) %>% 
   slice(1:10)
 knitr::kable(top10_most_expensive_districts)
-
-
 
 three_mil_plus <- lhd %>% 
   filter(price > 3000000) %>% 
@@ -183,6 +181,15 @@ leaflet() %>%
 webshot::install_phantomjs()
 mapshot(map_3_mill_plus, file = here::here('images', 'map_3_mill_plus.png'))
 
+# 10 least expensive districts based on the number of properties under 100000 GBP?
+least_expensive_districts <- lhd %>% 
+  group_by(district) %>%
+  filter(price <  100000) %>% 
+  summarise(properties_less_than_100K_GBP = n(), .groups = 'drop') %>% 
+  arrange(desc(properties_less_than_100K_GBP)) %>% 
+  slice(1:10)
+knitr::kable(least_expensive_districts)
+
 under_100K <- lhd %>% 
   filter(price < 100000) %>% 
   select(property_type, latitude, longitude, price)
@@ -195,11 +202,6 @@ map_under_100K <- under_100K %>%
 
 mapshot(map_under_100K, file = here::here('images', 'map_under_100K.png'))
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 01d8e48452e371a68ad7ed0d7af75069f491b778
 # which year had the most sales
 lhd %>% 
   group_by(transaction_year) %>%
@@ -263,7 +265,7 @@ lhd %>%
     y = NULL
   )
 
-
+## How often do properties change ownership ?
 lhd %>% 
   filter(num_of_sales <= 10) %>% 
   mutate(property_type = 
@@ -288,14 +290,24 @@ lhd %>%
 set.seed(123, sample.kind = 'Rounding')
 
 # Save the split information for an 80/20 split of the data, stratifying on price
-lhd_split <- initial_split(lhd, prob = 0.80, strata = price)
+lhd_split <- initial_split(lhd, prob = 0.80, strata = district)
 
 
 lhd_train <- training(lhd_split)
 lhd_test  <-  testing(lhd_split)
 
-dlm_spec <-  linear_reg() %>% 
+lm_spec <-  linear_reg() %>% 
   set_engine(engine = "lm")
+
+lhd_rec <- recipe(price ~ ., data = lhd_train) %>%
+  update_role(address, new_role = "id variable") %>%
+  update_role(price, new_role = "outcome") %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_numeric()) %>%
+  step_normalize(all_numeric()) %>%
+  prep()
+
+hotel_rec
 
 lm_fit <-  lm_spec %>% 
   fit(price ~ ., data = lhd_train)
@@ -304,6 +316,6 @@ lm_fit <-  lm_spec %>%
 rf_spec %>%  rand_forest(mode = "regression") %>% 
   set_engine("ranger")
 
-glimpse(lhd)
+lm_fit
 
 
