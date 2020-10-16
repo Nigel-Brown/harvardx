@@ -34,7 +34,17 @@ rm(cols)
 
 # create outward_code feature
 lhd <- lhd %>% 
-  mutate(outward_code = as.factor(substr(postcode, 1, 3))) %>% 
+  mutate(outward_code = as.factor(substr(postcode, 1, 3)),
+         sub_region = 
+           case_when(district %in% c("CAMDEN", "CITY OF LONDON", "KENSINGTON AND CHELSEA", "ISLINGTON",
+                                     "LAMBETH", "SOUTHWARK", "WESTMINSTER") ~ "Central",
+                     district %in% c("BARKING AND DAGENHAM","BEXLEY","GREENWICH","HACKNEY","HAVERING",
+                                     "LEWISHAM", "NEWHAM", "REDBRIDGE", "TOWER HAMLETS","WALTHAM FOREST") ~ "East",
+                     district %in% c("BARNET", "ENFIELD", "HARINGEY") ~ "North",
+                     district %in% c("BROMLEY","CROYDON","KINGSTON UPON THAMES", "MERTON", "SUTTON", "WANDSWORTH") ~ "South",
+                     district %in% c("BRENT", "EALING", "HAMMERSMITH AND FULHAM", "HARROW", "RICHMOND UPON THAMES", 
+                                     "HILLINGDON", "HOUNSLOW") ~ "West"),
+         sub_region = as.factor(sub_region)) %>% 
   select(-trans_date)
 
 # create number of times sold feature
@@ -255,6 +265,20 @@ knitr::kable(sales_by_type)
 
 # plot distribution of house prices
 lhd %>% 
+  ggplot( aes(x = price)) + 
+  geom_histogram(bins = 50, fill = 'steelblue', color = 'black') +
+  scale_x_continuous(labels = comma) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "House prices are skewed to the right.",
+    subtitle = "There are more inexpensive houses than expensive ones.",
+    x = 'Price GBP',
+    y = NULL
+  )
+  
+# A strong argument can be made that the price should be log-transformed. The advantages of doing this are that no houses would be predicted with negative sale prices and that errors in predicting expensive houses will not have an undue influence on the model. Also, from a statistical perspective, a logarithmic transform may also stabilize the variance in a way that makes inference more legitimate. 
+
+lhd %>% 
   ggplot(aes(price)) + 
   geom_histogram(bins = 20, fill = 'steelblue', color = 'black') + 
   scale_x_log10(label = comma) +
@@ -290,32 +314,22 @@ lhd %>%
 set.seed(123, sample.kind = 'Rounding')
 
 # Save the split information for an 80/20 split of the data, stratifying on price
-lhd_split <- initial_split(lhd, prob = 0.80, strata = district)
+lhd_split <- initial_split(lhd, prob = 0.80, strata = price)
 
 
 lhd_train <- training(lhd_split)
 lhd_test  <-  testing(lhd_split)
 
-lm_spec <-  linear_reg() %>% 
-  set_engine(engine = "lm")
+names(lhd)
 
-lhd_rec <- recipe(price ~ ., data = lhd_train) %>%
-  update_role(address, new_role = "id variable") %>%
-  update_role(price, new_role = "outcome") %>% 
-  step_dummy(all_nominal(), -all_outcomes()) %>%
-  step_zv(all_numeric()) %>%
-  step_normalize(all_numeric()) %>%
-  prep()
+lhd_rec <- recipe(price ~ transaction_year + outward_code + district + new_build + property_type + num_of_sales, data = lhd_train) %>% 
+  step_log(price) %>% 
+  step_other(district, threshold = 0.01) %>% 
+  step_dummy(all_nominal())
+lhd_rec <- prep(lhd_rec, training= lhd_train, retain = TRUE)  
+bake(lhd_rec, new_data = lhd_train)
 
-hotel_rec
 
-lm_fit <-  lm_spec %>% 
-  fit(price ~ ., data = lhd_train)
 
-# Random forest specification
-rf_spec %>%  rand_forest(mode = "regression") %>% 
-  set_engine("ranger")
-
-lm_fit
 
 
