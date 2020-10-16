@@ -326,6 +326,7 @@ lhd_rec <- recipe(price ~ transaction_year + outward_code + district + new_build
   step_log(price) %>% 
   step_other(district, threshold = 0.01) %>% 
   step_dummy(all_nominal())
+
 lhd_rec <- prep(lhd_rec, training= lhd_train, retain = TRUE)  
 
 juice(lhd_rec)
