@@ -1,9 +1,10 @@
 ---
-title: "Greater London Housing Prices"
+title: "King County, USA, Housing Prices"
 author: "Nigel Brown"
-date: "2020/10/13"
+date: "2020/10/21"
 output: 
   pdf_document:
+    fig_caption: yes
     toc: yes
     toc_depth: 3
     number_sections: yes
@@ -16,323 +17,156 @@ repos <- 'https://cran.rstudio.com/'
 if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
 if(!require(tidymodels)) install.packages("tidymodels", repos = repos)
 if(!require(scales)) install.packages("scales", repos = repos)
+if(!require(funModeling)) install.packages("funModeling", repos = repos)
+if(!require(lubridate)) install.packages("lubridate", repos = repos)
 
 rm(repos)
+
 # set theme for charts
 theme_set(theme_minimal())
 
-# load the dataset lhd
-lhd <- read_rds(here::here('data', 'lhd.rds'))
+# load the dataset 
+df <- read_csv(here::here('data', 'kc_house_data.csv'))
 ```
 
 # Introduction
 
-The goal of this project is to predict house prices in the Greater London Area based on the type of property and the area of London that the property resides in.
+The goal of this project is to predict house prices from the House Sales in King County, USA dataset downloaded from [kaggle](https://www.kaggle.com/harlfoxem/housesalesprediction).
 
-The dataset for the project is made from data sourced from [HM Land Registry](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) and [FreeMapTools](https://www.freemaptools.com/download-uk-postcode-lat-lng.htm). This data has been pre-processed into a dataset titled lhd.rds. The data chosen is a 10 year period 2009-2019. The reason 2020 has been left out of the data is that is an incomplete year at the time of analysis. The data contains 4 different types of property detached; flats/maisonettes; semi-detached and terraced. It doesn't contain the number of rooms or the total area of the property, therefore a 2 bedroom flat is categorized the same as a 4 bedroom flat and a prediction can only be made on the property type of a given district. 
+The project followed the stages of:
 
-The price paid data set from the HM Land Registry is joined together with spatial data to add latitude and longitude for the properties based on their postcodes. This will allow for mapping of the data.
+1.  Data Exploration
+2.  Cleaning the data to ready it for modeling
+3.  Modeling: Linear, randomForest and xgboost
+4.  Evaluating the models performance and finalizing the results
 
-# Data Wrangling
+# Initial data exploration
 
-As a first step data, that is in logical form (true/false) is converted into integers 1 or 0. Next all columns containing character data are factorized.
+The dataset consists of house prices in King County, Washington from observed sales between May 2014 and May 2015. The data consists of `r nrow(df)` rows of data, each row observes a single sale. There are `r ncol(df)` features in the dataset. The features are:
 
-## Features added to the data
-Next a new feature is created based on the outward code contained in a postcode i.e the sub-district and another feature containing the number of times a property was observed to be sold in the 10 year time period is added.
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Variable                          | Description                                                                                                                                                                                                                                                                    |
++===================================+================================================================================================================================================================================================================================================================================+
+| id                                | Unique ID for each sale                                                                                                                                                                                                                                                        |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| date                              | Date of the observed sale                                                                                                                                                                                                                                                      |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| price                             | Price of each house sold                                                                                                                                                                                                                                                       |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| bedrooms                          | Number of bedrooms                                                                                                                                                                                                                                                             |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| bathrooms                         | Number of bathrooms, where .5 is a room with a toilet but no with bath or shower                                                                                                                                                                                               |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sqft living                       | Square footage of the interior living space of the house                                                                                                                                                                                                                       |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sqft lot                          | Square footage of the land area the house resides on                                                                                                                                                                                                                           |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| floors                            | Number of floors                                                                                                                                                                                                                                                               |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| waterfront                        | Does the house overlook the waterfront front                                                                                                                                                                                                                                   |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| view                              | An index from 0 to 4 of how good the view of the property is                                                                                                                                                                                                                   |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| condition                         | An index from 1 to 5 on the condition of the house when sold                                                                                                                                                                                                                   |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| grade                             | An index from 1 to 13, where 1-3 have poor construction and design, 4 - 6 have below average construction and design, 7 has an average level of construction and design, 8 -11 have above average construction and design and 11 -13 have high quality construction and design |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sqrt above                        | Square footage of the interior housing space above ground level                                                                                                                                                                                                                |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sqrt basement                     | Square footage of the interior housing space below ground level                                                                                                                                                                                                                |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| yr_built                          | the year the house was built                                                                                                                                                                                                                                                   |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| yr_renovated                      | the year of the house's last renovation                                                                                                                                                                                                                                        |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| zipcode                           | the area zip code where the house is situated                                                                                                                                                                                                                                  |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| lat                               | Latitude                                                                                                                                                                                                                                                                       |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| long                              | Longitude                                                                                                                                                                                                                                                                      |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sqft_living15                     | The square footage of the interior living space for the closest 15 neighbors                                                                                                                                                                                                   |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sqft_lot15                        | The square footage of land for the closest 15 neighbors' houses                                                                                                                                                                                                                |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
-```{r data_wrangling, echo = FALSE}
 
-cols <- sapply(lhd, is.logical)
-lhd[,cols] <- lapply(lhd[,cols], as.integer)
-cols <- sapply(lhd, is.character)
-lhd[,cols] <- lapply(lhd[,cols], as.factor)
+Price will be utilized as the outcome column for our models.
 
-# clean up 
-rm(cols)
+The next step is to analyze the data for missing values. For this analysis the [df_status](https://www.rdocumentation.org/packages/funModeling/versions/1.9.4/topics/df_status) function from the [funModelling](https://www.rdocumentation.org/packages/funModeling/versions/1.9.4) package is utilized.
 
-# create outward_code feature
-lhd <- lhd %>% 
-  mutate(outward_code = as.factor(substr(postcode, 1, 3))) %>% 
-  select(-trans_date)
+```{r data_status, echo = FALSE}
 
-# create number of times sold feature
-sum_price <- lhd %>% 
-  group_by(address) %>% 
-  summarise(num_of_sales = n(), .groups = 'drop')
-
-lhd <- inner_join(lhd, sum_price, by = 'address')
+status <- df_status(df, print_results = FALSE)
+knitr::kable(status,
+             caption = "Dataset status") 
 
 ```
-# Exploritory Data Analysis
 
-Now that the dataset is cleaned, an exploration of the data is performed. The data consists of `r nrow(lhd)` rows of data, each row observes a single sale. The are `r ncol(lhd)` features in the dataset, with price being the outcome feature.
+-   **q_zeros:** quantity of zeros (p_zeros: in percent)
+-   **q_inf:** quantity of infinite values (p_inf: in percent)
+-   **q_na:** quantity of NA (p_na: in percent)
+-   **type:** the variable type
+-   **unique:** quantity of unique values
 
-First the price movement for each property type is plotted 
+# Data Preprocessing
 
-```{r prices_detached, out.height = "2000px",out.width = "500px", echo = FALSE}
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "D") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of detached house prices per district 2009 - 2019",
-    subtitle = "The spread of prices in Hounslow and Westminster has narrowed,
-    while in Kensington and Chelsea it has widened",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
+```{r remove_vars, include=FALSE}
+
+remove_vars <-  status %>% filter(status$p_zeros > 0.6) %>% pull(variable)
+df <- df %>% select(-one_of(remove_vars))
 
 ```
+As is shown in the table above there are no instances of missing data or values being infinite, however there are a number of variables where the percentage of zeros is greater than 60%, these may not be useful for modeling and they may dramatically bias the model. Therefore For this project the decision is made to remove these variables from the dataset. The features removed are: `r remove_vars`.
 
+Once the predominately zero columns are removed, there are `r ncol(df)` left in the dataset. The date feature is split into year and month featurres and the original date is dropped
 
-```{r prices_flats, echo = FALSE}
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "F") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of flat/masonette prices per district 2009 - 2019",
-    subtitle = "Camden & Kensigton and Chelsea have seen the largest price growth",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-```
+```{r data_preporcessing}
 
-```{r prices_semi, echo = FALSE}
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "S") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of semi-detached house prices per district 2009 - 2019",
-    subtitle = "Kensington and Chelsea has the biggest jump in prices",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-```
-
-```{r prices_terraced, echo = FALSE}
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "T") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE, outlier.alpha = 0.5) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of terraced house prices per district 2009 - 2019",
-    subtitle = "The price increase has been similar across all districts",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
+df <- df %>% 
+  mutate(year = year(date),
+         month = month(date),
+         age = year - yr_built) %>% 
+  select(-date)
+glimpse(df)
 ```
 
 
-## How does the avg price increase year on year ?
-```{r avg_price_yoy, echo=FALSE}
-lhd %>% 
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  group_by(transaction_year, property_type) %>% 
-  summarise(avg_price = mean(price), .groups = 'drop') %>% 
-  ggplot(aes(transaction_year, avg_price, color= property_type)) + 
-  geom_line(alpha = 0.7, size = 1.5 )+
-  geom_point() +
-  scale_y_continuous(labels = comma) + 
-  scale_x_continuous(breaks= pretty_breaks()) + 
-  theme(legend.position = "top")  +
-  labs(
-    title = "The increase average housing cost by type in Greater London",
-    subtitle = "A distinct slowdown in the increase since 2017",
-    x = "Year",
-    y = "Average sales price GBP",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.')
-```
+## Is there a month when most sales occur?
 
-## Is there a trend of which month most sales occur on ?
-```{r month_trend, echo=FALSE}
-lhd %>% 
-  group_by(transaction_month) %>% 
-  summarise(n = n(), .groups = 'drop') %>% 
-  ggplot(aes(transaction_month, n)) + 
+```{r month_sales, echo = FALSE}
+df %>% 
+  group_by(month) %>% 
+  summarise(n = n(), .group = 'drop') %>% 
+  ggplot(aes(month, n)) + 
   geom_col(show.legend = FALSE, fill = 'steelblue') +
   scale_x_discrete(limits = c('Jan', "Feb", "Mar", "Apr", "May",
                               "Jun", "Jul", "Aug", "Sep", "Oct",
                               "Nov", "Dec")) +
   labs(
-    title = "Summer months are the most popular for house purchases",
+    title = "May is the most popular for house purchases",
     x = NULL,
-    y = "Number of sale transcations",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
+    y = "Number of sale transactions"
+   )
+
 ```
+
 
 ## Which are the 10 most expensive districts based on the number of properties sold over 3 million GBP?
 
-```{r top_10_expensive, echo=FALSE}
-top10_most_expensive_districts <- lhd %>% 
-  group_by(district) %>%
-  filter(price > 3000000) %>% 
-  summarise(properties_greater_than_3_million_GBP = n(), .groups = 'drop') %>% 
-  arrange(desc(properties_greater_than_3_million_GBP)) %>% 
-  slice(1:10)
-knitr::kable(top10_most_expensive_districts)
-```
-
-## How are properties sold for greater than 3 million GBP clustered ?
-
-```{r insert-image,fig.align='center', out.width = "500px", echo = FALSE}
-knitr::include_graphics(here::here('images', 'map_3_mill_plus.png'))
-```
-
 ## Which are the 10 least expensive districts based on the number of properties under 100K GBP?
 
-```{r least_expensive, echo=FALSE}
-least_expensive_districts <- lhd %>% 
-  group_by(district) %>%
-  filter(price < 100000) %>% 
-  summarise(properties_less_than_100K_GBP = n(), .groups = 'drop') %>% 
-  arrange(desc(properties_less_than_100K_GBP)) %>% 
-  slice(1:10)
-knitr::kable(least_expensive_districts)
-
-```
 ## How are properties under 100k GBP clustered ?
-
-```{r insert-image2,fig.align='center', out.width = "500px", echo = FALSE}
-knitr::include_graphics(here::here('images', 'map_under_100K.png'))
-```
-
-As can be seen from the above analysis some districts contain both top end and bottom end properties, such as Barnet and Haringey.
-
 
 ## Are the sales evenly spread across Greater London ?
 
-```{r spread_of_sales, echo = FALSE}
-lhd %>% 
-  group_by(district, property_type) %>% 
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  summarise(n = n(), .groups = 'drop') %>% 
-  ggplot(aes(fct_reorder(district, -n), n, fill = property_type)) +
-  geom_col(color = "black") +
-  scale_y_continuous(labels = comma) +
-  theme(axis.text.x  = element_text(angle=-90, hjust=0),
-        legend.position = "top") +
-  labs(
-    title = "Number of observed sales by district",
-    subtitle = "Terraced housing dominates the Greater London housing market",
-    x= NULL,
-    y = "Number of Properties",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-```
-
 ## Which type of property sold the most ?
-```{r most_sales_by_type, echo = FALSE}
-sales_by_type <- lhd %>% 
-  group_by(property_type) %>%
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  summarise(number_of_properties = n(), .groups = 'drop') %>% 
-  arrange(desc(number_of_properties)) 
-
-knitr::kable(sales_by_type)
-```
 
 ## Which year had the most sales
 
-```{r sales_per_year, fig.height = 6, echo= FALSE}
-lhd %>% 
-  group_by(transaction_year) %>%
-  summarise(number_of_properties = n(), .groups = 'drop') %>% 
-  ggplot(aes(transaction_year, number_of_properties)) +
-  geom_col(fill = 'steelblue') + 
-  scale_x_continuous(breaks= pretty_breaks()) +
-  labs(
-    title = "Since 2014 the volume of house sales has been on the decline.",
-    x = NULL,
-    y = "Properties sold",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-```
-
 ## How often do properties change ownership ?
 
-```{r num_of_sales, echo = FALSE}
-
-lhd %>% 
-  filter(num_of_sales <= 10) %>% 
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  ggplot(aes(num_of_sales)) +
-  geom_bar(aes(fill = property_type)) +
-  scale_x_discrete(name ="Observered sales", 
-                   limits=c("1","2","3", "4", "5", "6", "7", "8", "9" ,"10")) +
-  labs(
-    title = "5% of properties sold more than 3 times in the 10 year period.",
-    subtitle = "Properties sold more than 10 times excluded from plot.",
-    y = "Number of properties",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-```  
-
 ## How are house prices distributed ?
-
-```{r price_dist, echo = FALSE, warning = FALSE}
-lhd %>% 
-  ggplot(aes(price)) + 
-  geom_histogram(bins = 20, fill = 'steelblue', color = 'black') + 
-  scale_x_log10(label = comma) +
-  scale_y_log10(label = comma) +
-  labs(
-    title = "House prices appear to be log-normally distributed",
-    x = 'Price (log10) GBP',
-    y = NULL
-  )
-
-```
-
-
-
-```{r}
-glimpse(lhd)
-nlevels(lhd$outward_code)
-nlevels(lhd$district)
-nlevels(lhd$postcode)
-nlevels(lhd$address)
-nlevels(lhd$property_type)
-```
-
 
 # Methods/Analysis
 
@@ -341,35 +175,12 @@ The first step is to split the data into training and testing datasets. The spli
 ```{r split_data, echo = FALSE, warning = FALSE}
 # Set the random number stream using `set.seed()` so that the results can be 
 # reproduced later. 
-set.seed(123, sample.kind = 'Rounding')
+set.seed(1234, sample.kind = 'Rounding')
 
 # Save the split information for an 80/20 split of the data, stratifying on price
-lhd_split <- initial_split(lhd, prob = 0.80, strata = district)
 
-lhd_train <- training(lhd_split)
-lhd_test  <-  testing(lhd_split)
 ```
-
-
-
-
 
 # Results
 
 # Conclusion
-
-
-# Disclaimers
-
-Contains HM Land Registry data © Crown copyright and database right 2020. This data is licensed under the [Open Government Licence v3.0](http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/)
-
-
-**FreeMapTools**
-
-Contains Ordnance Survey data © Crown copyright and database right 2020.
-
-Contains Royal Mail data © Royal Mail copyright and database right 2020.
-
-Source: Office for National Statistics licensed under the [Open Government Licence v3.0](http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/)
-
-# Appendix

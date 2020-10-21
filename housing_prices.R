@@ -5,6 +5,7 @@ if(!require(scales)) install.packages("scales", repos = repos)
 if(!require(leaflet)) install.packages("leaflet", repos = repos)
 if(!require(mapview)) install.packages("mapview", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
+if(!require(funModeling)) install.packages("funModeling", repos = repos)
 
 
 # clean up 
@@ -21,41 +22,21 @@ library(mapview)
 theme_set(theme_minimal())
 
 # load the dataset lhd
-lhd <- read_rds(here::here('data', 'lhd.rds'))
+df <- read_csv(here::here('data', 'kc_house_data.csv'))
 
-# data wrangling 
-cols <- sapply(lhd, is.logical)
-lhd[,cols] <- lapply(lhd[,cols], as.integer)
-cols <- sapply(lhd, is.character)
-lhd[,cols] <- lapply(lhd[,cols], as.factor)
 
-# clean up 
-rm(cols)
+df_status(df)
 
-# create outward_code feature
-lhd <- lhd %>% 
-  mutate(outward_code = as.factor(substr(postcode, 1, 3)),
-         sub_region = 
-           case_when(district %in% c("CAMDEN", "CITY OF LONDON", "KENSINGTON AND CHELSEA", "ISLINGTON",
-                                     "LAMBETH", "SOUTHWARK", "WESTMINSTER") ~ "Central",
-                     district %in% c("BARKING AND DAGENHAM","BEXLEY","GREENWICH","HACKNEY","HAVERING",
-                                     "LEWISHAM", "NEWHAM", "REDBRIDGE", "TOWER HAMLETS","WALTHAM FOREST") ~ "East",
-                     district %in% c("BARNET", "ENFIELD", "HARINGEY") ~ "North",
-                     district %in% c("BROMLEY","CROYDON","KINGSTON UPON THAMES", "MERTON", "SUTTON", "WANDSWORTH") ~ "South",
-                     district %in% c("BRENT", "EALING", "HAMMERSMITH AND FULHAM", "HARROW", "RICHMOND UPON THAMES", 
-                                     "HILLINGDON", "HOUNSLOW") ~ "West"),
-         sub_region = as.factor(sub_region)) %>% 
-  select(-trans_date)
+df %>% 
+  ggplot(aes(bedrooms, price)) +
+  geom_point()
 
-# create number of times sold feature
-sum_price <- lhd %>% 
-  group_by(address) %>% 
-  summarise(num_of_sales = n())
+df %>% 
+  group_by(bedrooms) %>% 
+  ggplot(aes(condition, price)) +
+  geom_boxplot()
 
-lhd <- inner_join(lhd, sum_price)
-
-# clean up
-rm(sum_price)
+summary(df$bedrooms)
 
 
 # Plot price movement from 2009 -2019
@@ -319,19 +300,64 @@ lhd_split <- initial_split(lhd, prob = 0.80, strata = price)
 
 lhd_train <- training(lhd_split)
 lhd_test  <-  testing(lhd_split)
+lhd_cv <-  vfold_cv(lhd_train)
 
 names(lhd)
 
 lhd_rec <- recipe(price ~ transaction_year + outward_code + district + new_build + property_type + num_of_sales, data = lhd_train) %>% 
-  step_log(price) %>% 
+  step_log(price, base = 10) %>% 
   step_other(district, threshold = 0.01) %>% 
-  step_dummy(all_nominal())
-
-lhd_rec <- prep(lhd_rec, training= lhd_train, retain = TRUE)  
-
-juice(lhd_rec)
+  step_dummy(all_nominal()) %>% 
+  prep()
 
 
+lhd_rec
+
+lm_mod <- linear_reg(penalty = tune(),
+                     mixture = tune()) %>% 
+  set_engine("glmnet")
+
+wf <- workflow() %>% 
+  add_recipe(lhd_rec) %>% 
+  add_model(lm_mod)
+
+res <-  wf %>% 
+  tune_grid(resamples = lhd_cv,
+            grid = 10,
+            metrics = metric_set(rmse))
+res
+best_params <-   res %>%
+  select_best(metric = "rmse")
+best_params
+# Refit using the entire training data
+reg_res <- wf %>% 
+  finalize_workflow(best_params) %>%
+  fit(data = lhd_train)
+
+class(lhd_test)
+
+reg_res %>%
+  predict(new_data = juice(lhd_rec, as.data.frame(hd_test))) %>%
+  bind_cols(lhd_test, .) %>%
+  mutate(price = log10(price)) %>% 
+  select(price, .pred) %>% 
+  rmse(price, .pred)
 
 
+library(patchwork)
+library(splines)
 
+plot_smoother <- function(deg_free) {
+  ggplot(lhd_train, aes(x = latitude, y = price)) + 
+    geom_point(alpha = .2) + 
+    scale_y_log10() +
+    geom_smooth(
+      method = lm,
+      formula = y ~ ns(x, df = deg_free),
+      col = "red",
+      se = FALSE
+    ) +
+    ggtitle(paste(deg_free, "Spline Terms"))
+}
+
+( plot_smoother(10) + plot_smoother(50) ) / ( plot_smoother(100) + plot_smoother(500) )
