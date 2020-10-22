@@ -6,6 +6,7 @@ if(!require(leaflet)) install.packages("leaflet", repos = repos)
 if(!require(mapview)) install.packages("mapview", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
 if(!require(funModeling)) install.packages("funModeling", repos = repos)
+if(!require(tidycensus)) install.packages("tidycensus", repos = repos)
 
 
 # clean up 
@@ -25,7 +26,32 @@ theme_set(theme_minimal())
 df <- read_csv(here::here('data', 'kc_house_data.csv'))
 
 
-df_status(df)
+# data wrangling
+# remove features with a predominant number of zeros
+status <- df_status(df, print_results = FALSE)
+remove_vars <-  status %>% filter(status$p_zeros > 0.6) %>% pull(variable)
+df <- df %>% select(-one_of(remove_vars))
+
+df <- df %>% 
+  mutate(year = year(date),
+         month = month(date),
+         age = year - yr_built) %>% 
+  select(-date)
+
+to_convert <- df %>% 
+  select(-c('id', 'bathrooms', 'lat', 'long')) %>% 
+  colnames()
+
+df <- df %>% 
+  mutate_at(to_convert, as.integer)
+
+df <- df %>% 
+  filter(bedrooms != 0) %>% 
+  mutate(bedrooms = replace(bedrooms, bedrooms==33, 3))
+
+
+
+dim(df)  
 
 df %>% 
   ggplot(aes(bedrooms, price)) +
@@ -38,119 +64,62 @@ df %>%
 
 summary(df$bedrooms)
 
+library(leaflet)
+# create map plots for the RMD file
+bed_pal <- colorFactor(c("#000080", "red"), 1:2)
 
-# Plot price movement from 2009 -2019
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "F") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of flat/masonette prices per district 2009 - 2019",
-    subtitle = "Camden & Kensigton and Chelsea have seen the largest price growth",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
+m <- df %>% 
+  filter(bedrooms <= 2) %>% 
+  leaflet() %>%
+  addProviderTiles('CartoDB.Positron') %>%
+  addCircles(lng = ~long, 
+             lat = ~lat,
+             fillOpacity = .3,
+             popup = ~bedrooms,
+             color = ~bed_pal(bedrooms)) %>%
+  addLegend(pal = bed_pal, values = ~bedrooms, title = "# Bedrooms")
 
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "T") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of terraced house prices per district 2009 - 2019",
-    subtitle = "The price increase has been similar across all districts",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "D") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of detached house prices per district 2009 - 2019",
-    subtitle = "The spread of prices in Hounslow and Westminster has narrowed,
-    while in Kensington and Chelsea it has widened",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-
-lhd %>% 
-  filter(transaction_year %in% c("2009", "2019") & property_type == "S") %>% 
-  ggplot(aes(district, price)) +
-  geom_boxplot(aes(color = district), show.legend = FALSE) +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5)) + 
-  scale_y_log10(labels = comma) +
-  facet_wrap(~transaction_year, nrow = 2) +
-  labs(
-    title = "Movement of semi-detached house prices per district 2009 - 2019",
-    subtitle = "Kensington and Chelsea has the biggest jump in prices",
-    x = NULL,
-    y = "Price (log10)",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-
-# Many levels do the factorized columns have ?
-nlevels(lhd$outward_code)
-nlevels(lhd$district)
-nlevels(lhd$postcode)
-nlevels(lhd$address)
-
-# Examine the dimensions of the data
-dim(lhd)
-
-# EDA
-summary(lhd)  
-
-glimpse(lhd)
+webshot::install_phantomjs()
+mapshot(m, file = here::here('images', '1_2_beds.png'))
 
 
-# is there a trend of which month most sales occur on ?
-lhd %>% 
-  group_by(transaction_month) %>% 
-  summarise(n = n(), .group = 'drop') %>% 
-  ggplot(aes(transaction_month, n)) + 
-  geom_col(show.legend = FALSE, fill = 'steelblue') +
-  scale_x_discrete(limits = c('Jan', "Feb", "Mar", "Apr", "May",
-                              "Jun", "Jul", "Aug", "Sep", "Oct",
-                              "Nov", "Dec")) +
-  labs(
-    title = "Summer months are the most popular for house purchases",
-    x = NULL,
-    y = "Number of sale transcations",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
+bed_pal <- colorFactor(c("blue", "red"), 3:4)
+m <- df %>% 
+  filter(bedrooms > 2 & bedrooms < 5  ) %>% 
+  leaflet() %>%
+  addProviderTiles('CartoDB.Positron') %>%
+  addCircles(lng = ~long, 
+             lat = ~lat,
+             fillOpacity = .3,
+             popup = ~bedrooms,
+             color = ~bed_pal(bedrooms)) %>%
+  addLegend(pal = bed_pal, values = ~bedrooms, title = "# Bedrooms")
 
-# how does the avg price increase year on year ?
-lhd %>% 
-  group_by(transaction_year, property_type) %>% 
-  summarise(avg_price = mean(price)) %>% 
-  ggplot(aes(transaction_year, avg_price, color= property_type)) + 
-  geom_line(alpha = 0.7, size = 1.5 )+
-  geom_point() +
-  scale_y_continuous(labels = comma) + 
-  scale_x_continuous(breaks= pretty_breaks()) + 
-  theme(legend.position = "top")  +
-  labs(
-    title = "The increase average housing cost by type in Greater London",
-    subtitle = "A distinct slowdown in the increase since 2017",
-    x = "Year",
-    y = "Average sales price GBP",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.')
+mapshot(m, file = here::here('images', '3_4_beds.png'))
+
+bed_pal <- colorFactor(c( "blue","green","red"), 5:11)
+m <- df %>% 
+  filter(bedrooms > 5) %>% 
+  leaflet() %>%
+  addProviderTiles('CartoDB.Positron') %>%
+  addCircles(lng = ~long, 
+             lat = ~lat,
+             fillOpacity = .3,
+             popup = ~bedrooms,
+             color = ~bed_pal(bedrooms)) %>%
+  addLegend(pal = bed_pal, values = ~bedrooms, title = "# Bedrooms")
+mapshot(m, file = here::here('images', '5plus_beds.png'))
 
 
-# top 10 most expensive districts based on the number of properties over 3 million GBP?
+
+
+
+
+
+
+
+
+.# top 10 most expensive districts based on the number of properties over 3 million GBP?
 top10_most_expensive_districts <- lhd %>% 
   group_by(district) %>%
   filter(price > 3000000) %>% 
@@ -165,7 +134,7 @@ three_mil_plus <- lhd %>%
 
 # save image for later use in PDF report
 map_3_mill_plus <- three_mil_plus %>% 
-leaflet() %>% 
+  leaflet() %>% 
   addTiles() %>% 
   addMarkers(clusterOptions = markerClusterOptions())
 
@@ -208,88 +177,19 @@ lhd %>%
   )
 
 # are the sales evenly spread across Greater London ?
-lhd %>% 
-  group_by(district, property_type) %>% 
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  summarise(n = n()) %>% 
-  ggplot(aes(fct_reorder(district, -n), n, fill = property_type)) +
-  geom_col(color = "black") +
-  scale_y_continuous(labels = comma) +
-  theme(axis.text.x  = element_text(angle=-90, hjust=0),
-        legend.position = "top") +
+df %>% 
+  group_by(zipcode) %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
+  ggplot(aes(reorder(zipcode, -n), n)) +
+  geom_col(color = "black", fill = 'steelblue') +
+  theme(axis.text.x  = element_text(angle=-90, hjust=0)) +
   labs(
-    title = "Number of observed sales by district",
-    subtitle = "Terraced housing dominates the Greater London housing market",
-    x= NULL,
-    y = "Number of Properties",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
+    title = "Number of observed sales by zipcode",
+    x= "Zip code",
+    y = "Properties sold"
   )
 
-# Which type of property sold the most ?
-sales_by_type <- lhd %>% 
-  group_by(property_type) %>%
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  summarise(number_of_properties = n(), .groups = 'drop') %>% 
-  arrange(desc(number_of_properties)) 
 
-knitr::kable(sales_by_type)
-
-# plot distribution of house prices
-lhd %>% 
-  ggplot( aes(x = price)) + 
-  geom_density(bins = 50, fill = 'steelblue', color = 'black') +
-  scale_x_continuous(labels = comma) +
-  scale_y_continuous(labels = comma) +
-  labs(
-    title = "House prices are skewed to the right.",
-    subtitle = "There are more inexpensive houses than expensive ones.",
-    x = 'Price GBP',
-    y = NULL
-  )
-  
-# A strong argument can be made that the price should be log-transformed. The advantages of doing this are that no houses would be predicted with negative sale prices and that errors in predicting expensive houses will not have an undue influence on the model. Also, from a statistical perspective, a logarithmic transform may also stabilize the variance in a way that makes inference more legitimate. 
-
-lhd %>% 
-  ggplot(aes(price)) + 
-  geom_histogram(bins = 20, fill = 'steelblue', color = 'black') + 
-  scale_x_log10(label = comma) +
-  scale_y_log10(label = comma) +
-  labs(
-    title = "House prices appear to be log-normally distributed",
-    x = 'Price (log10) GBP',
-    y = NULL
-  )
-
-## How often do properties change ownership ?
-lhd %>% 
-  filter(num_of_sales <= 10) %>% 
-  mutate(property_type = 
-           case_when(property_type == 'T' ~ "Terraced",
-                     property_type == 'D' ~ "Detached",
-                     property_type == 'S' ~ "Semi-Detached",
-                     property_type == 'F' ~ "Flat/Maisonette",
-                     property_type == 'O' ~ "Other")) %>% 
-  ggplot(aes(num_of_sales)) +
-  geom_bar(aes(fill = property_type), color = "black") +
-  scale_x_discrete(name ="Observered sales", 
-                   limits=c("1","2","3", "4", "5", "6", "7", "8", "9" ,"10")) +
-  labs(
-    title = "5% of properties sold more than 3 times in the 10 year period.",
-    subtitle = "Properties sold more than 10 times excluded from plot.",
-    y = "Number of properties",
-    caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
-  )
-  
 # Set the random number stream using `set.seed()` so that the results can be 
 # reproduced later. 
 set.seed(123, sample.kind = 'Rounding')

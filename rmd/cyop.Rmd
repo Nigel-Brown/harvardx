@@ -4,6 +4,7 @@ author: "Nigel Brown"
 date: "2020/10/21"
 output: 
   pdf_document:
+    latex_engine: xelatex
     fig_caption: yes
     toc: yes
     toc_depth: 3
@@ -12,13 +13,14 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.height = 9, fig.width = 7)
+knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10)
 repos <- 'https://cran.rstudio.com/'
 if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
 if(!require(tidymodels)) install.packages("tidymodels", repos = repos)
 if(!require(scales)) install.packages("scales", repos = repos)
 if(!require(funModeling)) install.packages("funModeling", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
+if(!require(corrplot)) install.packages("corrplot", repos = repos)
 
 rm(repos)
 
@@ -28,6 +30,10 @@ theme_set(theme_minimal())
 # load the dataset 
 df <- read_csv(here::here('data', 'kc_house_data.csv'))
 ```
+
+<div style="page-break-after: always; visibility: hidden"> 
+\pagebreak 
+</div>
 
 # Introduction
 
@@ -42,7 +48,7 @@ The project followed the stages of:
 
 # Initial data exploration
 
-The dataset consists of house prices in King County, Washington from observed sales between May 2014 and May 2015. The data consists of `r nrow(df)` rows of data, each row observes a single sale. There are `r ncol(df)` features in the dataset. The features are:
+The dataset consists of house prices in King County, Washington, USA from observed sales between May 2014 and May 2015. The data consists of `r nrow(df)` rows of data, each row observes a single sale. There are `r ncol(df)` features in the dataset. The features are:
 
 +-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | Variable                          | Description                                                                                                                                                                                                                                                                    |
@@ -51,7 +57,7 @@ The dataset consists of house prices in King County, Washington from observed sa
 +-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | date                              | Date of the observed sale                                                                                                                                                                                                                                                      |
 +-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| price                             | Price of each house sold                                                                                                                                                                                                                                                       |
+| price                             | Price of each house sold in USD                                                                                                                                                                                                                                                |
 +-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | bedrooms                          | Number of bedrooms                                                                                                                                                                                                                                                             |
 +-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -119,17 +125,122 @@ df <- df %>% select(-one_of(remove_vars))
 ```
 As is shown in the table above there are no instances of missing data or values being infinite, however there are a number of variables where the percentage of zeros is greater than 60%, these may not be useful for modeling and they may dramatically bias the model. Therefore For this project the decision is made to remove these variables from the dataset. The features removed are: `r remove_vars`.
 
-Once the predominately zero columns are removed, there are `r ncol(df)` left in the dataset. The date feature is split into year and month featurres and the original date is dropped
+Once the predominately zero columns are removed, there are `r ncol(df)` left in the dataset. The date feature is split into year and month features and the original date feature is dropped. It is also decided to convert all variables of type double except bathrooms, lat and long to integer type.
 
-```{r data_preporcessing}
+```{r data_preprocessing, echo = FALSE}
 
 df <- df %>% 
   mutate(year = year(date),
-         month = month(date),
-         age = year - yr_built) %>% 
+         month = month(date)) %>% 
   select(-date)
-glimpse(df)
+
+to_convert <- df %>% 
+  select(-c('id', 'bathrooms', 'lat', 'long')) %>% 
+  colnames()
+
+df <- df %>% 
+  mutate_at(to_convert, as.integer)
+
 ```
+
+## Data Anomilies
+
+```{r 33_bed_plot, echo = FALSE}
+df %>% 
+  ggplot(aes(bedrooms, price, color = ifelse(bedrooms < 20,'red','blue'))) +
+  geom_point(show.legend = FALSE) + 
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "The relationship between bedrooms and price",
+    subtitle = "1 property with 33 bedrooms and 13 properties with 0?",
+    y = "Price USD",
+    x = "Number of bedrooms"
+  )
+```
+
+```{r anomaly_table, echo = FALSE}
+
+knitr::kable(df %>% filter(bedrooms == 33 | bedrooms == 0) %>% 
+  select(id, price, bedrooms, bathrooms, floors, sqft_living),
+  caption = 'Anomalous Data')
+```
+
+Exploring the data it is found that a single property has been listed with 33 bedrooms. This property is re-entered as a 3 bedroom property. Also 13 properties are listed with zero bedrooms, as these properties range in size and there is no obvious method of reincorporating these properties in the data with a bedroom count that is explainable, these properties are dropped from the data.
+
+```{r anomalies, echo = FALSE}
+df <- df %>% 
+  filter(bedrooms != 0) %>% 
+  mutate(bedrooms = replace(bedrooms, bedrooms==33, 3))
+```
+
+
+# Exploritory Data Analysis
+
+Now that the data is cleaned it consists of `r nrow(df)`rows of data and `r ncol(df)` columns. An exploratory data analysis is now performed to visualize relationships and patterns in the data. 
+
+## How are house prices distributed ?
+
+```{r price_dist, echo = FALSE}
+df %>% 
+  ggplot( aes(x = price)) + 
+  geom_density(fill = 'steelblue', color = 'black') +
+  scale_x_continuous(labels = comma) +
+  scale_y_continuous() +
+  labs(
+    title = "House prices are right skewed.",
+    subtitle = "There are more inexpensive houses than expensive ones.",
+    x = 'Price USD',
+    y = NULL
+  )
+```
+
+```{r price_log_dist, echo = FALSE}
+df%>% 
+  ggplot(aes(price)) + 
+  geom_histogram(bins = 20, fill = 'steelblue', color = 'black') + 
+  scale_x_log10(label = comma) +
+  scale_y_log10(label = comma) +
+  labs(
+    title = "House prices appear to be log-normally distributed",
+    x = 'Price (log10) USD',
+    y = NULL
+  )
+```
+
+ A strong argument can be made that the price should be log-transformed. The advantages of doing this are that no houses would be predicted with negative sale prices and that errors in predicting expensive houses will not have an undue influence on the model. Also, from a statistical perspective, a logarithmic transform may also stabilize the variance in a way that makes inference more legitimate. When the models are built a final pre-processing step of transforming the prices into logs will be performed.
+ 
+ ## How many houses of each bedroom count were sold?
+
+```{r bedroom_sales, echo = FALSE}
+
+df %>% 
+  group_by(bedrooms) %>% 
+  summarise(number_of_sales = n(), .groups = 'drop') %>% 
+  ggplot(aes(bedrooms, number_of_sales )) +
+  geom_col(color = "black", fill = "steelblue") +
+  labs(
+    title = "4 bedroom houses sell more often than other house sizes",
+    subtitle = "3 bedroom houses are the next most frequently sold",
+    x = "Number of bedrooms",
+    y = "Number of observed sales"
+  )
+  
+```
+
+```{r price_per_bedroom, echo = FALSE}
+
+df %>% 
+ ggplot(aes(x = as.factor(bedrooms), y = price)) +
+      geom_boxplot(color = 'darkcyan', size = 0.5) +
+      theme(legend.position = 'none') +
+      scale_y_log10(labels = comma) +
+      labs(
+        title = "Price ranges based on bedrooms",
+        x = 'Number of bedrooms', 
+        y = 'Price USD (log 10)'
+        )
+```
+
 
 
 ## Is there a month when most sales occur?
@@ -137,7 +248,7 @@ glimpse(df)
 ```{r month_sales, echo = FALSE}
 df %>% 
   group_by(month) %>% 
-  summarise(n = n(), .group = 'drop') %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
   ggplot(aes(month, n)) + 
   geom_col(show.legend = FALSE, fill = 'steelblue') +
   scale_x_discrete(limits = c('Jan', "Feb", "Mar", "Apr", "May",
@@ -151,22 +262,104 @@ df %>%
 
 ```
 
+## Spatial analysis plots
 
-## Which are the 10 most expensive districts based on the number of properties sold over 3 million GBP?
+### Where are the sales located within King County?
 
-## Which are the 10 least expensive districts based on the number of properties under 100K GBP?
+```{r maps, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location 1 and 2 bedroom houses sold'}
 
-## How are properties under 100k GBP clustered ?
+knitr::include_graphics(here::here('images', '1_2_beds.png'))
 
-## Are the sales evenly spread across Greater London ?
+```
 
-## Which type of property sold the most ?
+```{r maps2, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location 3 and 4 bedroom houses sold'}
 
-## Which year had the most sales
+knitr::include_graphics(here::here('images', '3_4_beds.png'))
 
-## How often do properties change ownership ?
+```
 
-## How are house prices distributed ?
+```{r maps3, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location 5 or more bedroom houses sold'}
+
+knitr::include_graphics(here::here('images', '5plus_beds.png'))
+
+```
+
+
+
+## Are the sales evenly spread across the county ?
+
+```{r sales_per_zipcode, echo = FALSE}
+df %>% 
+  group_by(zipcode) %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
+  ggplot(aes(reorder(zipcode, -n), n)) +
+  geom_col(color = "black", fill = 'steelblue') +
+  theme(axis.text.x  = element_text(angle=-90, hjust=0)) +
+  labs(
+    title = "Number of observed sales by zipcode",
+    x= "Zip code",
+    y = "Properties sold"
+  )
+```
+
+## Does price increase as the lot area gets larger ?
+
+```{r lot_price_plot, echo = FALSE, message=FALSE}
+df %>% 
+ggplot( aes(x = sqft_lot, y = price)) + 
+  geom_point(alpha = 0.5) + 
+  # Show a simple linear model fit 
+  geom_smooth(method = lm, se = FALSE) + 
+  scale_y_log10()+
+  scale_x_log10(labels = comma)+
+  labs(
+    title = "Relationship between lot area and house price",
+    subtitle = "Both axes are in log10 scale",
+    x = "Lot area in square feet",
+    y = "Price USD")
+```
+
+## Does price increase as the interior area gets larger ?
+
+```{r living_price_plot, echo = FALSE, message=FALSE}
+df %>% 
+ggplot( aes(x = sqft_living, y = price)) + 
+  geom_point(alpha = 0.5) + 
+  # Show a simple linear model fit 
+  geom_smooth(method = lm, se = FALSE) + 
+  scale_y_log10()+
+  scale_x_log10(labels = comma)+
+  labs(
+    title = "Relationship between interior living space and house price",
+    subtitle = "Both axes are in log10 scale",
+    x = "Living space in square feet",
+    y = "Price USD")
+```
+
+## How  are the features correlated ?
+
+```{r corrplot, echo = FALSE, fig.width = 10}
+library(corrplot)
+
+M <- df %>% select(-id) %>% cor()
+
+corrplot.mixed(M,
+        upper = "circle",
+        lower = "number",
+        tl.pos = "lt",
+        diag = "u",
+        lower.col = "black"
+        )
+```
+
+The matrix indicates some correlation between price and:  
+
+ - **sqft_ features**, logically this makes sense as the more space a property has normally equates to a higher price
+-  **grade**, again this makes sense as the better condition  aproperty is in demands a higher price. 
+- **bathrooms**: the number of bathrooms correlates with the price, this is probably due to the space needed to have multiple bathrooms in a property.  
+
+
+
 
 # Methods/Analysis
 
