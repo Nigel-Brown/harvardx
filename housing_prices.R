@@ -34,7 +34,12 @@ df <- df %>% select(-one_of(remove_vars))
 
 df <- df %>% 
   mutate(year = year(date),
+<<<<<<< HEAD
          month = month(date)) %>% 
+=======
+         month = month(date),
+         age = year - yr_built) %>% 
+>>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
   select(-date)
 
 to_convert <- df %>% 
@@ -95,6 +100,21 @@ m <- df %>%
   addLegend(pal = bed_pal, values = ~bedrooms, title = "# Bedrooms")
 
 mapshot(m, file = here::here('images', '3_4_beds.png'))
+<<<<<<< HEAD
+
+bed_pal <- colorFactor(c( "blue","green","red"), 5:11)
+m <- df %>% 
+  filter(bedrooms > 5) %>% 
+  leaflet() %>%
+  addProviderTiles('CartoDB.Positron') %>%
+  addCircles(lng = ~long, 
+             lat = ~lat,
+             fillOpacity = .3,
+             popup = ~bedrooms,
+             color = ~bed_pal(bedrooms)) %>%
+  addLegend(pal = bed_pal, values = ~bedrooms, title = "# Bedrooms")
+mapshot(m, file = here::here('images', '5plus_beds.png'))
+=======
 
 bed_pal <- colorFactor(c( "blue","green","red"), 5:11)
 m <- df %>% 
@@ -109,6 +129,7 @@ m <- df %>%
   addLegend(pal = bed_pal, values = ~bedrooms, title = "# Bedrooms")
 mapshot(m, file = here::here('images', '5plus_beds.png'))
 
+>>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 
 
 
@@ -118,6 +139,10 @@ mapshot(m, file = here::here('images', '5plus_beds.png'))
 
 
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 .# top 10 most expensive districts based on the number of properties over 3 million GBP?
 top10_most_expensive_districts <- lhd %>% 
   group_by(district) %>%
@@ -175,6 +200,21 @@ lhd %>%
     caption = 'Contains HM Land Registry data © Crown copyright and database right 2020.'
   )
 
+<<<<<<< HEAD
+=======
+# are the sales evenly spread across Greater London ?
+df %>% 
+  group_by(zipcode) %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
+  ggplot(aes(reorder(zipcode, -n), n)) +
+  geom_col(color = "black", fill = 'steelblue') +
+  theme(axis.text.x  = element_text(angle=-90, hjust=0)) +
+  labs(
+    title = "Number of observed sales by zipcode",
+    x= "Zip code",
+    y = "Properties sold"
+  )
+>>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 
 
 # Set the random number stream using `set.seed()` so that the results can be 
