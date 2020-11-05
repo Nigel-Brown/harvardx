@@ -14,13 +14,16 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10)
+
 repos <- 'https://cran.rstudio.com/'
+
 if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
 if(!require(tidymodels)) install.packages("tidymodels", repos = repos)
 if(!require(scales)) install.packages("scales", repos = repos)
 if(!require(funModeling)) install.packages("funModeling", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
 if(!require(corrplot)) install.packages("corrplot", repos = repos)
+if(!require(tictoc)) install.packages("tictoc", repos = repos)
 
 rm(repos)
 
@@ -31,15 +34,10 @@ theme_set(theme_minimal())
 df <- read_csv(here::here('data', 'kc_house_data.csv'))
 ```
 
-<<<<<<< HEAD
-{style="page-break-after: always; visibility: hidden"}
-\pagebreak
-
-=======
 <div style="page-break-after: always; visibility: hidden"> 
 \pagebreak 
 </div>
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
+
 
 # Introduction
 
@@ -57,7 +55,7 @@ The project followed the stages of:
 
 The dataset consists of house prices in King County, Washington, USA from observed sales between May 2014 and May 2015. The data consists of `r nrow(df)` rows of data, each row observes a single sale. There are `r ncol(df)` features in the dataset. The features are:
 
-<<<<<<< HEAD
+
 +----------------+------------------------------------------------------------------------------+
 | Variable       | Description                                                                  |
 +================+==============================================================================+
@@ -105,56 +103,6 @@ The dataset consists of house prices in King County, Washington, USA from observ
 +----------------+------------------------------------------------------------------------------+
 
 ## Data status
-=======
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| Variable                          | Description                                                                                                                                                                                                                                                                    |
-+===================================+================================================================================================================================================================================================================================================================================+
-| id                                | Unique ID for each sale                                                                                                                                                                                                                                                        |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| date                              | Date of the observed sale                                                                                                                                                                                                                                                      |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| price                             | Price of each house sold in USD                                                                                                                                                                                                                                                |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| bedrooms                          | Number of bedrooms                                                                                                                                                                                                                                                             |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| bathrooms                         | Number of bathrooms, where .5 is a room with a toilet but no with bath or shower                                                                                                                                                                                               |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| sqft living                       | Square footage of the interior living space of the house                                                                                                                                                                                                                       |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| sqft lot                          | Square footage of the land area the house resides on                                                                                                                                                                                                                           |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| floors                            | Number of floors                                                                                                                                                                                                                                                               |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| waterfront                        | Does the house overlook the waterfront front                                                                                                                                                                                                                                   |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| view                              | An index from 0 to 4 of how good the view of the property is                                                                                                                                                                                                                   |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| condition                         | An index from 1 to 5 on the condition of the house when sold                                                                                                                                                                                                                   |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| grade                             | An index from 1 to 13, where 1-3 have poor construction and design, 4 - 6 have below average construction and design, 7 has an average level of construction and design, 8 -11 have above average construction and design and 11 -13 have high quality construction and design |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| sqrt above                        | Square footage of the interior housing space above ground level                                                                                                                                                                                                                |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| sqrt basement                     | Square footage of the interior housing space below ground level                                                                                                                                                                                                                |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| yr_built                          | the year the house was built                                                                                                                                                                                                                                                   |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| yr_renovated                      | the year of the house's last renovation                                                                                                                                                                                                                                        |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| zipcode                           | the area zip code where the house is situated                                                                                                                                                                                                                                  |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| lat                               | Latitude                                                                                                                                                                                                                                                                       |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| long                              | Longitude                                                                                                                                                                                                                                                                      |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| sqft_living15                     | The square footage of the interior living space for the closest 15 neighbors                                                                                                                                                                                                   |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| sqft_lot15                        | The square footage of land for the closest 15 neighbors' houses                                                                                                                                                                                                                |
-+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
-
-Price will be utilized as the outcome column for our models.
 
 The next step is to analyze the data for missing values. For this analysis the [df_status](https://www.rdocumentation.org/packages/funModeling/versions/1.9.4/topics/df_status) function from the [funModelling](https://www.rdocumentation.org/packages/funModeling/versions/1.9.4) package is utilized.
 
@@ -177,8 +125,10 @@ knitr::kable(status,
 ```{r remove_vars, include=FALSE, dependson=status}
 
 remove_vars <-  status %>% filter(status$p_zeros > 0.6) %>% pull(variable)
+
 df <- df %>% select(-one_of(remove_vars))
-rm(remove_vars, status)
+
+rm(status)
 ```
 
 As is shown in the table above there are no instances of missing data or values being infinite, however there are a number of variables where the percentage of zeros is greater than 60%, these may not be useful for modeling and they may dramatically bias the model. Therefore For this project the decision is made to remove these variables from the dataset. The features removed are: `r remove_vars`.
@@ -193,33 +143,22 @@ df <- df %>%
   select(-date)
 
 to_convert <- df %>% 
-<<<<<<< HEAD
   select(-c('id', 'bedrooms', 'bathrooms', 'lat', 'long')) %>% 
-=======
-  select(-c('id', 'bathrooms', 'lat', 'long')) %>% 
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
   colnames()
 
 df <- df %>% 
   mutate_at(to_convert, as.integer)
 
-<<<<<<< HEAD
-rm(to_convert)
-=======
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
+# clean up
+rm(remove_vars, to_convert)
 ```
 
 ## Data Anomilies
 
 ```{r 33_bed_plot, echo = FALSE}
 df %>% 
-<<<<<<< HEAD
   ggplot(aes(bedrooms, price, color = ifelse(bedrooms < 20,'steelblue', 'red'))) +
-  geom_point(size = 2, alpha = 0.4, show.legend = FALSE) + 
-=======
-  ggplot(aes(bedrooms, price, color = ifelse(bedrooms < 20,'red','blue'))) +
-  geom_point(show.legend = FALSE) + 
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
+  geom_point(size = 2, alpha = 0.6, show.legend = FALSE) + 
   scale_y_continuous(labels = comma) +
   labs(
     title = "The relationship between bedrooms and price",
@@ -227,7 +166,6 @@ df %>%
     y = "Price USD",
     x = "Number of bedrooms"
   )
-<<<<<<< HEAD
 ```
 
 ```{r anomaly_table, echo = FALSE}
@@ -237,18 +175,6 @@ knitr::kable(df %>% filter(bedrooms == 33 | bedrooms == 0) %>%
   caption = 'Anomalous Data')
 
 ```
-
-=======
-```
-
-```{r anomaly_table, echo = FALSE}
-
-knitr::kable(df %>% filter(bedrooms == 33 | bedrooms == 0) %>% 
-  select(id, price, bedrooms, bathrooms, floors, sqft_living),
-  caption = 'Anomalous Data')
-```
-
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 Exploring the data it is found that a single property has been listed with 33 bedrooms. This property is re-entered as a 3 bedroom property. Also 13 properties are listed with zero bedrooms, as these properties range in size and there is no obvious method of reincorporating these properties in the data with a bedroom count that is explainable, these properties are dropped from the data.
 
 ```{r anomalies, echo = FALSE}
@@ -257,16 +183,9 @@ df <- df %>%
   mutate(bedrooms = replace(bedrooms, bedrooms==33, 3))
 ```
 
-<<<<<<< HEAD
 # Exploritory Data Analysis
 
 Now that the data is cleaned it consists of `r nrow(df)` rows of data and `r ncol(df)` columns. An exploratory data analysis is now performed to visualize relationships and patterns in the data.
-=======
-
-# Exploritory Data Analysis
-
-Now that the data is cleaned it consists of `r nrow(df)`rows of data and `r ncol(df)` columns. An exploratory data analysis is now performed to visualize relationships and patterns in the data. 
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 
 ## How are house prices distributed ?
 
@@ -297,15 +216,9 @@ df%>%
   )
 ```
 
-<<<<<<< HEAD
 A strong argument can be made that the price should be log-transformed. The advantages of doing this are that no houses would be predicted with negative sale prices and that errors in predicting expensive houses will not have an undue influence on the model. Also, from a statistical perspective, a logarithmic transform may also stabilize the variance in a way that makes inference more legitimate. When the models are built a final pre-processing step of transforming the prices into logs will be performed.
 
 ## How many houses of each bedroom count were sold?
-=======
- A strong argument can be made that the price should be log-transformed. The advantages of doing this are that no houses would be predicted with negative sale prices and that errors in predicting expensive houses will not have an undue influence on the model. Also, from a statistical perspective, a logarithmic transform may also stabilize the variance in a way that makes inference more legitimate. When the models are built a final pre-processing step of transforming the prices into logs will be performed.
- 
- ## How many houses of each bedroom count were sold?
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 
 ```{r bedroom_sales, echo = FALSE}
 
@@ -323,34 +236,24 @@ df %>%
   
 ```
 
-<<<<<<< HEAD
 ### Price to number of bedroom relationship
 
-=======
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 ```{r price_per_bedroom, echo = FALSE}
 
 df %>% 
  ggplot(aes(x = as.factor(bedrooms), y = price)) +
-<<<<<<< HEAD
       geom_boxplot(color = 'steelblue', outlier.alpha = 0.4) +
-=======
       geom_boxplot(color = 'darkcyan', size = 0.5) +
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
       theme(legend.position = 'none') +
       scale_y_log10(labels = comma) +
       labs(
         title = "Price ranges based on bedrooms",
-<<<<<<< HEAD
         subtitle = "The average price increases as the number of bedrooms increase",
-=======
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
         x = 'Number of bedrooms', 
         y = 'Price USD (log 10)'
         )
 ```
 
-<<<<<<< HEAD
 ## What condition were the houses in when sold ?
 
 ```{r condition_plot, echo = FALSE}
@@ -369,7 +272,7 @@ df %>%
 
 ### Price to house condition relationship
 
-```{r price_grade, echo = FALSE}
+```{r price_condition, echo = FALSE}
 
 df %>% 
  ggplot(aes(x = as.factor(condition), y = price)) +
@@ -387,7 +290,7 @@ df %>%
 
 ## Which grade of houses sold the most ?
 
-```{r garde_plot, echo = FALSE}
+```{r grade_plot, echo = FALSE}
 
 df %>% 
   group_by(grade) %>% 
@@ -417,9 +320,6 @@ df %>%
         y = 'Price USD (log 10)'
         )
 ```
-=======
-
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 
 ## Is there a month when most sales occur?
 
@@ -444,17 +344,13 @@ df %>%
 
 ### Where are the sales located within King County?
 
-<<<<<<< HEAD
+
 ```{r maps, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location of 1 and 2 bedroom houses sold'}
-=======
-```{r maps, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location 1 and 2 bedroom houses sold'}
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 
 knitr::include_graphics(here::here('images', '1_2_beds.png'))
 
 ```
 
-<<<<<<< HEAD
 ```{r maps2, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location of 3 and 4 bedroom houses sold'}
 
 knitr::include_graphics(here::here('images', '3_4_beds.png'))
@@ -524,274 +420,49 @@ ggplot( aes(x = sqft_living, y = price)) +
 library(corrplot)
 
 M <- df %>% select(-id) %>% cor()
-
+par(cex=0.7)
 corrplot.mixed(M,
         upper = "circle",
         lower = "number",
         tl.pos = "lt",
+        tl.cex = 1,
+        cl.cex = 1,
         diag = "u",
         lower.col = "black"
         )
+# clean up
+rm(M)
 ```
 
 The matrix indicates some correlation between price and:
 
 -   **sqft\_ features**, logically this makes sense as the more space a property has normally equates to a higher price
--   **grade**, again this makes sense as the better condition aproperty is in demands a higher price.
+-   **grade**, again this makes sense as the better condition a property is in, demands a higher price.
 -   **bathrooms**: the number of bathrooms correlates with the price, this is probably due to the space needed to have multiple bathrooms in a property.
-=======
-```{r maps2, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location 3 and 4 bedroom houses sold'}
 
-knitr::include_graphics(here::here('images', '3_4_beds.png'))
-
-```
-
-```{r maps3, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location 5 or more bedroom houses sold'}
-
-knitr::include_graphics(here::here('images', '5plus_beds.png'))
-
-```
-
-
-
-## Are the sales evenly spread across the county ?
-
-```{r sales_per_zipcode, echo = FALSE}
-df %>% 
-  group_by(zipcode) %>% 
-  summarise(n = n(), .groups = 'drop') %>% 
-  ggplot(aes(reorder(zipcode, -n), n)) +
-  geom_col(color = "black", fill = 'steelblue') +
-  theme(axis.text.x  = element_text(angle=-90, hjust=0)) +
-  labs(
-    title = "Number of observed sales by zipcode",
-    x= "Zip code",
-    y = "Properties sold"
-  )
-```
-
-## Does price increase as the lot area gets larger ?
-
-```{r lot_price_plot, echo = FALSE, message=FALSE}
-df %>% 
-ggplot( aes(x = sqft_lot, y = price)) + 
-  geom_point(alpha = 0.5) + 
-  # Show a simple linear model fit 
-  geom_smooth(method = lm, se = FALSE) + 
-  scale_y_log10()+
-  scale_x_log10(labels = comma)+
-  labs(
-    title = "Relationship between lot area and house price",
-    subtitle = "Both axes are in log10 scale",
-    x = "Lot area in square feet",
-    y = "Price USD")
-```
-
-## Does price increase as the interior area gets larger ?
-
-```{r living_price_plot, echo = FALSE, message=FALSE}
-df %>% 
-ggplot( aes(x = sqft_living, y = price)) + 
-  geom_point(alpha = 0.5) + 
-  # Show a simple linear model fit 
-  geom_smooth(method = lm, se = FALSE) + 
-  scale_y_log10()+
-  scale_x_log10(labels = comma)+
-  labs(
-    title = "Relationship between interior living space and house price",
-    subtitle = "Both axes are in log10 scale",
-    x = "Living space in square feet",
-    y = "Price USD")
-```
-
-## How  are the features correlated ?
-
-```{r corrplot, echo = FALSE, fig.width = 10}
-library(corrplot)
-
-M <- df %>% select(-id) %>% cor()
-
-corrplot.mixed(M,
-        upper = "circle",
-        lower = "number",
-        tl.pos = "lt",
-        diag = "u",
-        lower.col = "black"
-        )
-```
-
-The matrix indicates some correlation between price and:  
-
- - **sqft_ features**, logically this makes sense as the more space a property has normally equates to a higher price
--  **grade**, again this makes sense as the better condition  aproperty is in demands a higher price. 
-- **bathrooms**: the number of bathrooms correlates with the price, this is probably due to the space needed to have multiple bathrooms in a property.  
-
-
-
->>>>>>> ffa13c406140861dc258ed1cac68a5ac9fd03fa7
 
 # Methods/Analysis
 
 ## Data split
 
-The first step is to split the data into training and testing datasets. The split will be an 80/20 split with 80% of the data in the training set and the remaining 20% in the test set. The split of the data will be stratified by district, to ensure that the number of data points in the training data is equivalent to the proportions in the original data set.
-At some point some parameter tuning will be performed, and to do that cross-validation is used. A cross-validated version of the training set is created in preparation for the parameter tuning.
+The first step is to split the data into training and testing datasets. The split will be an 80/20 split with 80% of the data in the training set and the remaining 20% in the test set. The split of the data is stratified by district, to ensure that the number of data points in the training data is equivalent to the proportions in the original data set.
 
-```{r split_data, echo = FALSE, warning = FALSE}
-
-# Convert price to a log10 value
-df <- df %>% mutate(price = log10(price))
-
-
-# Set the random number stream using `set.seed()` so that the results can be 
-# reproduced later. 
-set.seed(54321)
-
-# Save the split information for an 80/20 split of the data, stratifying on price
-df_split <- initial_split(df, prob = 0.8, strata = price)
-
-
-df_train <- training(df_split)
-df_test  <-  testing(df_split)
-
-
-# create CV object from training data
-df_cv <- vfold_cv(df_train)
-
-# clean up
-rm(df_split, M, remove_vars, to_convert)
-```
-
-After splitting the data the training set consists of `r nrow(df_train)` row of data and the test set contains `r nrow(df_test)` rows of data. Keeping the training and test set stored in two separate dataframes ensures that information leakages doesn't accidentally occur.
+Parameter tuning will be performed, when modeling and to do that cross-validation is used. A cross-validated version of the training set is created in preparation for the parameter tuning.
+As the training and test set are stored in two separate dataframes this ensures that information leakages do not accidentally occur.
 
 ## Linear Regression model
 
-A model is built using price as the outcome . A recipe is created using the [tidymodels](https://www.tidymodels.org/) package.
-The predictors used are grade, bedrooms, sqft_living, yr_built and zip_code. Sqft_living is transformed into log10 values to coincide with the price log transformation. Also where the number of bedrooms in the properties is less than 1% of the trainset, these properties are grouped together under the title other.
-Once the recipe is created, a specification is defined using lm as the engine for a linear regression model. Finally both the model and recipe are added to a workflow 
+A model is built using price as the outcome, the id column is unused and the remaining features are predictors. A recipe is created using the [tidymodels](https://www.tidymodels.org/) package.
+The predictors that start with **sqft_** are transformed into log10 values to coincide with the price log transformation. The data is grouped for **bedrooms, bathrooms and zipcodes** where the value in the data is less than 1% of the data set into a variable value 'other'.
+Once the recipe is created, a specification is defined using **lm** as the engine for the linear regression model. Finally both the model and recipe are added to a workflow.
 
-```{r df_lm_recipe, echo = FALSE}
-
-df_lm_rec <- 
-  recipe(price ~ ., data = df_train) %>%
-  step_other(bedrooms, threshold = 0.01) %>% 
-  step_log(sqft_living, base = 10) %>% 
-  prep()
-
-```
+This workflow is then used to fit the model and predict prices. The accuracy of the model is checked using the metrics RMSE, 
 
 
 
-```{r lm_spec, echo = FALSE}
-
-lm_mod <- linear_reg() %>% 
-  set_engine("lm")
-
-```
-
-```{r rf_spec, echo = FALSE}
-rf_mod <- 
-  rand_forest(trees = 1000) %>% 
-  set_engine("ranger") %>% 
-  set_mode("regression")
-
-```
-
-```{r workflow, echo=FALSE}
-
-wflow <- workflow() %>% 
-  add_model(lm_mod) %>% 
-  add_recipe(simple_df_rec)
-
-wflow
-```
-
-```{r wf_fit, echo = FALSE}
-
-lm_fit <- 
-  wflow %>% 
-  fit(data = df_train)
-
-lm_fit %>% 
-  pull_workflow_fit() %>% 
-  tidy()
-
-```
-
-```{r test_res, echo=FALSE}
-lm_test_res <- 
-  predict(lm_fit, new_data = df_test %>% select(-price)) 
-
-lm_test_res <- bind_cols(lm_test_res, df_test %>% select(price))
-
-
-lm_test_res
-```
-
-```{r lm_res_metrics}
-
-lm_test_res %>% 
-ggplot(aes(price, .pred)) + 
-  # Create a diagonal line:
-  geom_abline(lty = 2) + 
-  geom_point(alpha = 0.5) + 
-  labs(y = "Predicted Sale Price (log10)", x = "Sale Price (log10)") +
-  # Scale and size the x- and y-axis uniformly:
-  coord_obs_pred()
-
-
-res_metrics <- metric_set(rmse, rsq, mae)
-res_metrics(lm_test_res, truth = price, estimate = .pred)
-
-
-```
 
 
 
-```{r}
-rf_wflow <- 
-  workflow() %>% 
-  add_formula(price ~ grade + bedrooms + sqft_living + yr_built + zipcode) %>% 
-  add_model(rf_model) 
-
-```
-
-```{r}
-rf_fit <- rf_wflow %>% fit(data = df_train)
-```
-
-```{r}
-estimate_perf <- function(model, dat) {
-  # Capture the names of the objects used
-  cl <- match.call()
-  obj_name <- as.character(cl$model)
-  data_name <- as.character(cl$dat)
- 
-  
-  # Estimate these metrics:
-  reg_metrics <- metric_set(rmse, rsq, mae)
-  
-  model %>% 
-    predict(dat) %>% 
-    bind_cols(dat %>% select(price)) %>% 
-    reg_metrics(price, .pred) %>% 
-    select(-.estimator) %>% 
-    mutate(object = obj_name, data = data_name)
-}
-
-estimate_perf(rf_fit, df_train)
-estimate_perf(lm_fit, df_train)
-
-estimate_perf(rf_fit, df_test)
-```
-
-```{r}
-set.seed(55)
-df_folds <- vfold_cv(df_train, v = 10)
-df_folds
-
-df_folds$splits[[1]] %>% analysis() %>% dim()
-```
 
 
 # Results
