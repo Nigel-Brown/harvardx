@@ -7,7 +7,6 @@ if(!require(leaflet)) install.packages("leaflet", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
 if(!require(tictoc)) install.packages("tictoc", repos = repos)
 
-
 # clean up 
 rm(repos)
 
@@ -120,9 +119,13 @@ df_split <- initial_split(df, prob = 0.8, strata = price)
 df_train <- training(df_split)
 df_test  <-  testing(df_split)
 
+write_rds(df_train, here::here('data', 'train.rds'))
+write_rds(df_train, here::here('data', 'test.rds'))
+
 # create CV object from training data
 df_cv <- vfold_cv(df_train)
 
+# create lm recipe
 df_rec <- 
   recipe(price ~ ., data = df_train) %>%
   update_role(id, new_role = "ID") %>%
@@ -130,16 +133,16 @@ df_rec <-
   step_log(starts_with("sqft_"), base = 10) %>% 
   prep()
 
-df_rec
+class(df_rec)
 
+# create model
 lm_mod <- linear_reg() %>% 
   set_engine("lm")
 
+# create workflow
 lm_wflow <- workflow() %>% 
   add_model(lm_mod) %>% 
   add_recipe(df_rec)
-
-lm_wflow
 
 # Tic Toc used to time the model fitting
 tic()
@@ -153,3 +156,127 @@ lm_fit %>%
   tidy()
 
 toc()
+
+
+lm_test_res <- 
+  predict(lm_fit, new_data = df_test %>% select(-price)) 
+
+lm_test_res <- bind_cols(lm_test_res, df_test %>% select(price))
+
+
+lm_test_res
+
+
+
+
+lm_test_res %>% 
+  ggplot(aes(price, .pred)) + 
+  # Create a diagonal line:
+  geom_abline(lty = 2) + 
+  geom_point(alpha = 0.5) + 
+  labs(y = "Predicted Sale Price (log10)", x = "Sale Price (log10)") +
+  # Scale and size the x- and y-axis uniformly:
+  coord_obs_pred()
+
+
+res_metrics <- metric_set(rmse, rsq, mae)
+res_metrics(lm_test_res, truth = price, estimate = .pred)
+
+
+## Random Forest model
+
+Next a random forest specification is created, the mtry (the number of predictors to sample at each split) and min_n (the number of observations needed to keep splitting nodes) hyperparameters will be tuned. The engine used is Ranger and the mode is set as regression. The specification and recipe are then added to a random forest workflow.
+To tune the hyperparameters the cross validation folds created earlier will be utilized and a grid = 20 to choose 20 grid points automatically.
+
+
+
+rf_spec <- 
+  rand_forest(
+    mtry = tune(),
+    trees = 1000,
+    min_n =tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+
+rf_wflow <- 
+  workflow() %>% 
+  add_model(rf_spec) %>% 
+  add_recipe(df_rec)
+
+
+tic()
+doParallel::registerDoParallel()
+
+set.seed(123)
+tune_res <- tune_grid(
+  rf_wflow,
+  resamples = df_cv,
+  grid = 20
+)
+
+tune_res
+toc()
+
+
+
+tune_res %>%
+  collect_metrics() %>%
+  filter(.metric == "rsq") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+               values_to = "value",
+               names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "RSQ")
+
+
+rf_grid <- grid_regular(
+  mtry(range = c(4, 20)),
+  min_n(range = c(2, 10)),
+  levels = 5
+)
+
+rf_grid
+
+
+
+set.seed(456)
+tic()
+regular_res <- tune_grid(
+  rf_wflow,
+  resamples = df_cv,
+  grid = rf_grid
+)
+toc()
+
+
+
+
+estimate_perf <- function(model, dat) {
+  # Capture the names of the objects used
+  cl <- match.call()
+  obj_name <- as.character(cl$model)
+  data_name <- as.character(cl$dat)
+  
+  
+  # Estimate these metrics:
+  reg_metrics <- metric_set(rmse, rsq, mae)
+  
+  model %>% 
+    predict(dat) %>% 
+    bind_cols(dat %>% select(price)) %>% 
+    reg_metrics(price, .pred) %>% 
+    select(-.estimator) %>% 
+    mutate(object = obj_name, data = data_name)
+}
+
+estimate_perf(rf_fit, df_train)
+estimate_perf(lm_fit, df_train)
+
+estimate_perf(rf_fit, df_test)
+
+
