@@ -133,7 +133,7 @@ df_rec <-
   step_log(starts_with("sqft_"), base = 10) %>% 
   prep()
 
-class(df_rec)
+df_rec
 
 # create model
 lm_mod <- linear_reg() %>% 
@@ -183,12 +183,9 @@ res_metrics <- metric_set(rmse, rsq, mae)
 res_metrics(lm_test_res, truth = price, estimate = .pred)
 
 
+
+
 ## Random Forest model
-
-Next a random forest specification is created, the mtry (the number of predictors to sample at each split) and min_n (the number of observations needed to keep splitting nodes) hyperparameters will be tuned. The engine used is Ranger and the mode is set as regression. The specification and recipe are then added to a random forest workflow.
-To tune the hyperparameters the cross validation folds created earlier will be utilized and a grid = 20 to choose 20 grid points automatically.
-
-
 
 rf_spec <- 
   rand_forest(
@@ -215,7 +212,7 @@ tune_res <- tune_grid(
   grid = 20
 )
 
-tune_res
+write_rds(tune_res, here::here('data', 'tune_res.rds'))
 toc()
 
 
@@ -242,8 +239,6 @@ rf_grid <- grid_regular(
 
 rf_grid
 
-
-
 set.seed(456)
 tic()
 regular_res <- tune_grid(
@@ -256,27 +251,6 @@ toc()
 
 
 
-estimate_perf <- function(model, dat) {
-  # Capture the names of the objects used
-  cl <- match.call()
-  obj_name <- as.character(cl$model)
-  data_name <- as.character(cl$dat)
-  
-  
-  # Estimate these metrics:
-  reg_metrics <- metric_set(rmse, rsq, mae)
-  
-  model %>% 
-    predict(dat) %>% 
-    bind_cols(dat %>% select(price)) %>% 
-    reg_metrics(price, .pred) %>% 
-    select(-.estimator) %>% 
-    mutate(object = obj_name, data = data_name)
-}
 
-estimate_perf(rf_fit, df_train)
-estimate_perf(lm_fit, df_train)
-
-estimate_perf(rf_fit, df_test)
 
 

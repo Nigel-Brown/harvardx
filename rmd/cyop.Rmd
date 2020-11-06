@@ -454,9 +454,130 @@ As the training and test set are stored in two separate dataframes this ensures 
 
 A model is built using price as the outcome, the id column is unused and the remaining features are predictors. A recipe is created using the [tidymodels](https://www.tidymodels.org/) package.
 The predictors that start with **sqft_** are transformed into log10 values to coincide with the price log transformation. The data is grouped for **bedrooms, bathrooms and zipcodes** where the value in the data is less than 1% of the data set into a variable value 'other'.
+
+
+```{r recipe, echo=FALSE}
+df_train <- read_rds(here::here('data', 'train.rds'))
+df_test <- read_rds(here::here('data', 'test.rds'))
+
+df_rec <- 
+  recipe(price ~ ., data = df_train) %>%
+  update_role(id, new_role = "ID") %>%
+  step_other(c(bedrooms,bathrooms, zipcode), threshold = 0.01) %>% 
+  step_log(starts_with("sqft_"), base = 10) %>% 
+  prep()
+
+df_rec
+
+```
+
 Once the recipe is created, a specification is defined using **lm** as the engine for the linear regression model. Finally both the model and recipe are added to a workflow.
 
-This workflow is then used to fit the model and predict prices. The accuracy of the model is checked using the metrics RMSE, 
+```{r workflow, echo=FALSE}
+# create model
+lm_mod <- linear_reg() %>% 
+  set_engine("lm")
+
+# create workflow
+lm_wflow <- workflow() %>% 
+  add_model(lm_mod) %>% 
+  add_recipe(df_rec)
+```
+
+
+This workflow is then used to fit the model using the training dataset. The result of the data fit is shown below:
+
+```{r lm_fit, echo=FALSE}
+set.seed(12345)
+lm_fit <- 
+  lm_wflow %>% 
+  fit(data = df_train)
+
+lm_fit %>% 
+  pull_workflow_fit() %>% 
+  tidy()
+```
+
+
+```{r lm_test_res, echo=FALSE}
+lm_test_res <- 
+  predict(lm_fit, new_data = df_test %>% select(-price)) 
+lm_test_res <- bind_cols(lm_test_res, df_test %>% select(price))
+```
+
+The model fit is next used to predict house prices and plot, the accuracy of the predictions is shown via the metrics rmse (Root mean square error, the standard deviation of the prediction errors), rsq (R^2 a measure that represents the proportion of the variance for a dependent variable that's explained by an independent variable or variables in a regression model) and mae (mean absolute error, the average of all absolute errors).
+
+```{r plot_res, echo=FALSE}
+lm_test_res %>% 
+  ggplot(aes(price, .pred)) + 
+  # Create a diagonal line:
+  geom_abline(lty = 2) + 
+  geom_point(alpha = 0.4, color = 'steelblue') + 
+  labs(y = "Predicted Sale Price (log10)", x = "Sale Price (log10)") +
+  # Scale and size the x- and y-axis uniformly:
+  coord_obs_pred()
+```
+
+```{r lm_metrics, echo=FALSE}
+
+res_metrics <- metric_set(rmse, rsq, mae)
+lm_res_metrics <- res_metrics(lm_test_res, truth = price, estimate = .pred)
+knitr::kable(lm_res_metrics,
+             caption = "Linear Regression Model Result Metrics")
+```
+
+## Random Forest model
+
+Next a random forest specification is created, the mtry (the number of predictors to sample at each split) and min_n (the number of observations needed to keep splitting nodes) hyperparameters will be tuned. The engine used is **Ranger** and the mode is set as regression. The specification and recipe are then added to a random forest workflow.
+
+
+```{r rf_spec, echo=FALSE}
+rf_spec <- 
+  rand_forest(
+    mtry = tune(),
+    trees = 1000,
+    min_n =tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+rf_wflow <- 
+  workflow() %>% 
+  add_model(rf_spec) %>% 
+  add_recipe(df_rec)
+
+rf_wflow
+```
+
+To tune the hyperparameters the cross validation folds created earlier will be utilized and a tuning grid of 20 candidate parameter sets to be created automatically.  The result of the first tuning can be plotted and shows that the min_n seems best at values under 10 and the mtry is best at values over 4.
+
+```{r plot_tune_res, echo=FALSE}
+tune_res <- read_rds(here::here('data', 'tune_res.rds'))
+tune_res %>%
+  collect_metrics() %>% 
+  filter(.metric == "rsq") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+               values_to = "value",
+               names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  theme_light() +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "RSQ")
+
+```
+
+Using this information a new regular grid is created, with the mtry and min_n being tuned again using a  defined range of values.
+```{r grid_regular, echo=FALSE}
+rf_grid <- grid_regular(
+  mtry(range = c(4, 20)),
+  min_n(range = c(2, 10)),
+  levels = 5
+)
+
+knitr::kable(rf_grid, caption = 'Regular grid for tuning hyperparameters')
+```
 
 
 
