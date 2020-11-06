@@ -133,7 +133,7 @@ df_rec <-
   step_log(starts_with("sqft_"), base = 10) %>% 
   prep()
 
-class(df_rec)
+df_rec
 
 # create model
 lm_mod <- linear_reg() %>% 
@@ -183,12 +183,9 @@ res_metrics <- metric_set(rmse, rsq, mae)
 res_metrics(lm_test_res, truth = price, estimate = .pred)
 
 
+
+
 ## Random Forest model
-
-Next a random forest specification is created, the mtry (the number of predictors to sample at each split) and min_n (the number of observations needed to keep splitting nodes) hyperparameters will be tuned. The engine used is Ranger and the mode is set as regression. The specification and recipe are then added to a random forest workflow.
-To tune the hyperparameters the cross validation folds created earlier will be utilized and a grid = 20 to choose 20 grid points automatically.
-
-
 
 rf_spec <- 
   rand_forest(
@@ -204,7 +201,7 @@ rf_wflow <-
   add_model(rf_spec) %>% 
   add_recipe(df_rec)
 
-
+# The tuning takes a while go get a coffee !
 tic()
 doParallel::registerDoParallel()
 
@@ -215,7 +212,7 @@ tune_res <- tune_grid(
   grid = 20
 )
 
-tune_res
+write_rds(tune_res, here::here('data', 'tune_res.rds'))
 toc()
 
 
@@ -233,7 +230,6 @@ tune_res %>%
   facet_wrap(~parameter, scales = "free_x") +
   labs(x = NULL, y = "RSQ")
 
-
 rf_grid <- grid_regular(
   mtry(range = c(4, 20)),
   min_n(range = c(2, 10)),
@@ -242,10 +238,10 @@ rf_grid <- grid_regular(
 
 rf_grid
 
-
-
-set.seed(456)
+set.seed(345)
 tic()
+doParallel::registerDoParallel()
+
 regular_res <- tune_grid(
   rf_wflow,
   resamples = df_cv,
@@ -253,30 +249,38 @@ regular_res <- tune_grid(
 )
 toc()
 
+write_rds(regular_res, here::here('data', 'reg_res.rds'))
+best_rmse <- select_best(regular_res, "rmse")
+
+final_rf <- finalize_model(
+  rf_spec,
+  best_auc
+)
+
+final_rf
+
+library(vip)
+
+final_rf %>%
+  set_engine("ranger", importance = "permutation") %>%
+  fit(price ~ .,
+      data = juice(df_rec) %>% select(-id)
+  ) %>%
+  vip(geom = "point")
+
+final_wf <- workflow() %>%
+  add_recipe(df_rec) %>%
+  add_model(final_rf)
+
+final_res <- final_wf %>%
+  last_fit(df_split)
+
+final_res %>%
+  collect_metrics()
 
 
 
-estimate_perf <- function(model, dat) {
-  # Capture the names of the objects used
-  cl <- match.call()
-  obj_name <- as.character(cl$model)
-  data_name <- as.character(cl$dat)
-  
-  
-  # Estimate these metrics:
-  reg_metrics <- metric_set(rmse, rsq, mae)
-  
-  model %>% 
-    predict(dat) %>% 
-    bind_cols(dat %>% select(price)) %>% 
-    reg_metrics(price, .pred) %>% 
-    select(-.estimator) %>% 
-    mutate(object = obj_name, data = data_name)
-}
 
-estimate_perf(rf_fit, df_train)
-estimate_perf(lm_fit, df_train)
 
-estimate_perf(rf_fit, df_test)
 
 
