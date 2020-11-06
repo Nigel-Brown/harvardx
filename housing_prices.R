@@ -238,7 +238,8 @@ rf_grid <- grid_regular(
 
 rf_grid
 
-set.seed(345)
+set.seed(456)
+
 tic()
 doParallel::registerDoParallel()
 
@@ -277,8 +278,6 @@ final_res <- final_wf %>%
 
 final_res %>%
   collect_metrics()
-
-
 
 
 
