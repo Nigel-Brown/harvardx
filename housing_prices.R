@@ -166,9 +166,6 @@ lm_test_res <- bind_cols(lm_test_res, df_test %>% select(price))
 
 lm_test_res
 
-
-
-
 lm_test_res %>% 
   ggplot(aes(price, .pred)) + 
   # Create a diagonal line:
@@ -181,9 +178,6 @@ lm_test_res %>%
 
 res_metrics <- metric_set(rmse, rsq, mae)
 res_metrics(lm_test_res, truth = price, estimate = .pred)
-
-
-
 
 ## Random Forest model
 
@@ -215,8 +209,6 @@ tune_res <- tune_grid(
 write_rds(tune_res, here::here('data', 'tune_res.rds'))
 toc()
 
-
-
 tune_res %>%
   collect_metrics() %>%
   filter(.metric == "rsq") %>%
@@ -238,6 +230,10 @@ rf_grid <- grid_regular(
 
 rf_grid
 
+# Clean up
+
+rm(tune_res)
+
 set.seed(456)
 
 tic()
@@ -250,35 +246,63 @@ regular_res <- tune_grid(
 )
 toc()
 
-write_rds(regular_res, here::here('data', 'reg_res.rds'))
 best_rmse <- select_best(regular_res, "rmse")
+write_rds(best_rmse, here::here('data', 'best.rds'))
 
 final_rf <- finalize_model(
   rf_spec,
-  best_auc
+  best_rmse
 )
 
-final_rf
-
 library(vip)
-
-final_rf %>%
+tic()
+final_rf_vip <- final_rf %>%
   set_engine("ranger", importance = "permutation") %>%
   fit(price ~ .,
       data = juice(df_rec) %>% select(-id)
-  ) %>%
-  vip(geom = "point")
+  ) 
+vip_gg <- vip(final_rf_vip) +
+  geom_col(fill = 'skyblue', color = 'black') +
+  labs(
+    subtitle = 'North vs South is of major importance',
+    x = "Variable",
+    y = "Importance"
+  )
+ggsave(vip_gg, file = here::here('images', 'vip.png'))
 
+toc()
+
+# Final workflow for random forest
 final_wf <- workflow() %>%
   add_recipe(df_rec) %>%
   add_model(final_rf)
 
+
+# Model is fit against the original split, 
+# takes roughly a minute to run
+tic()
 final_res <- final_wf %>%
   last_fit(df_split)
+toc()
 
-final_res %>%
-  collect_metrics()
+final_res <-  final_res %>%  collect_metrics()
 
+write_rds(final_res, here::here('data', 'final.rds'))
+
+
+xgb_spec <- boost_tree(
+  trees = 1000, 
+  tree_depth = tune(), 
+  min_n = tune(), 
+  loss_reduction = tune(),                     
+  sample_size = tune(),
+  mtry = tune(),        
+  learn_rate = tune(),                        
+) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+
+xgb_spec
 
 
 

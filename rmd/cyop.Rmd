@@ -24,6 +24,7 @@ if(!require(funModeling)) install.packages("funModeling", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
 if(!require(corrplot)) install.packages("corrplot", repos = repos)
 if(!require(tictoc)) install.packages("tictoc", repos = repos)
+if(!require(vip)) install.packages("vip", repos = repos)
 
 rm(repos)
 
@@ -568,7 +569,7 @@ tune_res %>%
 
 ```
 
-Using this information a new regular grid is created, with the mtry and min_n being tuned again using a  defined range of values.
+Using this information a new regular grid is created, with the mtry and min_n being tuned again using a pre-defined range of values.
 ```{r grid_regular, echo=FALSE}
 rf_grid <- grid_regular(
   mtry(range = c(4, 20)),
@@ -578,6 +579,72 @@ rf_grid <- grid_regular(
 
 knitr::kable(rf_grid, caption = 'Regular grid for tuning hyperparameters')
 ```
+
+The result of the re-tuning of the hyperparameters is shown below:
+
+```{r, best_rmse, echo=FALSE}
+
+best_rmse <- read_rds(here::here('data', 'best.rds'))
+best_rmse
+
+```
+
+Using these values the model is finalized, by updating the original specification created before tuning.
+
+```{r final_rf, echo=FALSE}
+
+final_rf <- finalize_model(
+  rf_spec,
+  best_rmse
+)
+
+final_rf
+```
+
+Now that the specification is finalized the **vip** package is used to visualize the variable importance within the model. Variable importance shows the latitude and longitude i.e. the location of a property has very high importance, as do the grade, year a property was built and the square footage of the living area.
+
+```{r vip_plot, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Random forest variable importance'}
+
+knitr::include_graphics(here::here('images', 'vip.png'))
+
+```
+
+<div style="page-break-after: always; visibility: hidden"> 
+\pagebreak 
+</div>
+
+A final workflow is created and then fitted one last time. The fit of the final model is on the entire training set and evaluated against the testing set, for this the original split is used. 
+
+
+```{r echo=FALSE}
+
+final_rf <- read_rds(here::here('data', 'final.rds'))
+final_rf
+```
+
+## XGBoost model
+
+As a final model to predict the housing prices, an XGBoost model will be created. This model is based on trees and allows for multiple hyperparameters to be tuned. The initial step is to create a specification. 
+
+```{r xgb_spec, echo=FALSE}
+
+xgb_spec <- boost_tree(
+  trees = 1000, 
+  tree_depth = tune(), 
+  min_n = tune(), 
+  loss_reduction = tune(),                     
+  sample_size = tune(),
+  mtry = tune(),        
+  learn_rate = tune(),                        
+) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+
+xgb_spec
+
+```
+
+
 
 
 
