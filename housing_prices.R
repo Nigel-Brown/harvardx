@@ -232,8 +232,10 @@ rf_grid
 
 # Clean up
 
-rm(tune_res)
+rm(tune_res, rf_fit)
 
+
+# Last tuning of hyperparameters
 set.seed(456)
 
 tic()
@@ -249,6 +251,7 @@ toc()
 best_rmse <- select_best(regular_res, "rmse")
 write_rds(best_rmse, here::here('data', 'best.rds'))
 
+# final model using best hyperparameters
 final_rf <- finalize_model(
   rf_spec,
   best_rmse
@@ -260,7 +263,9 @@ final_rf_vip <- final_rf %>%
   set_engine("ranger", importance = "permutation") %>%
   fit(price ~ .,
       data = juice(df_rec) %>% select(-id)
-  ) 
+  )
+
+# plot importance and save for reporting 
 vip_gg <- vip(final_rf_vip) +
   geom_col(fill = 'skyblue', color = 'black') +
   labs(
@@ -270,6 +275,8 @@ vip_gg <- vip(final_rf_vip) +
   )
 ggsave(vip_gg, file = here::here('images', 'vip.png'))
 
+# clean up
+rm(vip_gg)
 toc()
 
 # Final workflow for random forest
@@ -321,7 +328,64 @@ xgb_wf <- workflow() %>%
                 long  + sqft_living15 + sqft_lot15 + year + month) %>%
   add_model(xgb_spec)
 
-xgb_wf
+
+# tune the hyperparameters and save the predictions
+# this take a while, be patient
+tic()
+doParallel::registerDoParallel()
+
+set.seed(234)
+xgb_res <- tune_grid(
+  xgb_wf,
+  resamples = df_cv,
+  grid = xgb_grid,
+  control = control_grid(save_pred = TRUE)
+)
+
+xgb_metrics <- collect_metrics(xgb_res)
+write_rds(xgb_metrics, here::here('data', 'xgb_metrics.rds'))
+
+best_tab <-  show_best(xgb_res, "rsq")
+write_rds(best_tab, here::here('data', 'xgb_best.rds'))
+best_rsq <-  select_best(xgb_res, "rsq" )
+write_rds(best_rsq, here::here('data', 'xgb_best_rsq.rds'))
+toc()
+
+
+# Final xgb workflow
+final_xgb <- finalize_workflow(
+  xgb_wf,
+  best_rsq
+)
+
+
+# Variable importance of the xgboost model
+tic()
+doParallel::registerDoParallel()
+
+final_xgb_vip <- final_xgb %>%
+  fit(data = df_train) %>%
+  pull_workflow_fit() 
+toc()
+
+
+xgb_vip_gg <- final_xgb_vip %>% vip() +
+  geom_col(fill = 'steelblue', color = 'black') +
+  labs(
+    subtitle = 'Living space is most important',
+    x = "Variable",
+    y = "Importance"
+  )
+
+ggsave(xgb_vip_gg, file = here::here('images', 'xgb_vip.png'))
+
+
+rm(xgb_vip_gg )
+ 
+
+
+
+
 
 
 

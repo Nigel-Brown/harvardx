@@ -644,8 +644,69 @@ xgb_spec
 
 ```
 
+Once the specification is created, a space-filling parameter grid is defined using [latin hypercube sampling](https://en.wikipedia.org/wiki/Latin_hypercube_sampling). In the workflow, a formula can be used due to the lack of pre-processing of data.
+
+```{R xgb_wf, echo=FALSE}
+xgb_wf <- workflow() %>%
+  add_formula(price ~ bedrooms + bathrooms + sqft_living + sqft_lot +
+  floors + condition + grade + sqft_above + yr_built + zipcode + lat +
+  long  + sqft_living15 + sqft_lot15 + year + month) %>%
+  add_model(xgb_spec)
+
+xgb_wf
+```
+
+The hyperparameters are tuned using the workflow, specification and the cross validation folds that were created previously. The metrics from the tuning results are displayed below
+
+```{r xgb_tune_res, echo=FALSE}
+
+xgb_metrics <- read_rds(here::here('data', 'xgb_metrics.rds'))
+xgb_metrics  %>%
+  filter(.metric == "rsq") %>%
+  select(mean, mtry:sample_size) %>%
+  pivot_longer(mtry:sample_size,
+               values_to = "value",
+               names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  theme_light() +
+  labs(x = NULL, y = "rsq")
 
 
+```
+
+There appear to be a number of parameter combinations that perform well, they are displayed in table below.
+
+```{r xgb_best, echo=FALSE}
+xgb_best <- read_rds(here::here('data', 'xgb_best.rds'))
+xgb_best_summary <- xgb_best %>% select(-c('.metric', 'mean', 'n', '.estimator', 'std_err'))
+
+knitr::kable(xgb_best_summary,
+             caption = "The best combinations of hyperparameters for the XGBoost model")
+```
+
+The XGBoost workflow is finalized using the best parameter set.
+
+```{r final_xgb_wf, echo=FALSE}
+best_rsq <- read_rds(here::here('data', 'xgb_best_rsq.rds'))
+
+final_xgb <- finalize_workflow(
+  xgb_wf,
+  best_rsq
+)
+
+final_xgb
+```
+
+Before running the finalized XGBoost model, an analysis of the variable importance is performed, the results of which are shown below. In the XGBoost model the longitude of a property is of less importance than in the random forest model.
+
+```{r xgb_vip_plot, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Random forest variable importance'}
+
+knitr::include_graphics(here::here('images', 'xgb_vip.png'))
+
+```
 
 
 
