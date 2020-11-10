@@ -289,7 +289,7 @@ final_res <-  final_res %>%  collect_metrics()
 
 write_rds(final_res, here::here('data', 'final.rds'))
 
-
+# XGBoost Specification
 xgb_spec <- boost_tree(
   trees = 1000, 
   tree_depth = tune(), 
@@ -302,7 +302,26 @@ xgb_spec <- boost_tree(
   set_engine("xgboost") %>% 
   set_mode("regression")
 
-xgb_spec
+
+# XGBoost tuning grid
+xgb_grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(),
+  finalize(mtry(), df_train),
+  learn_rate(),
+  size = 30
+)
+
+# XGBoost workflow
+xgb_wf <- workflow() %>%
+  add_formula(price ~ bedrooms + bathrooms + sqft_living + sqft_lot +
+                floors + condition + grade + sqft_above + yr_built + zipcode + lat +
+                long  + sqft_living15 + sqft_lot15 + year + month) %>%
+  add_model(xgb_spec)
+
+xgb_wf
 
 
 
