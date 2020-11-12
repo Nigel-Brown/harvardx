@@ -1,6 +1,5 @@
 # Load library packages ---------------------------------------------------
 
-
 repos <- 'https://cran.rstudio.com/'
 
 if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
@@ -9,6 +8,11 @@ if(!require(scales)) install.packages("scales", repos = repos)
 if(!require(leaflet)) install.packages("leaflet", repos = repos)
 if(!require(lubridate)) install.packages("lubridate", repos = repos)
 if(!require(tictoc)) install.packages("tictoc", repos = repos)
+if(!require(funModeling)) install.packages("funModeling", repos = repos)
+if(!require(webshot)) install.packages("webshot", repos = repos)
+if(!require(mapview)) install.packages("mapview", repos = repos)
+if(!require(here)) install.packages("here", repos = repos)
+if(!require(vip)) install.packages("vip", repos = repos)
 
 ## clean up 
 rm(repos)
@@ -19,17 +23,25 @@ library(scales)
 library(lubridate)
 library(leaflet)
 library(tictoc)
+library(funModeling)
+library(vip)
+library(webshot)
+library(mapview)
+library(here)
 
 # Set theme for plots ---------------------------------------------------
 theme_set(theme_minimal())
 
+# Used in saving of images 
+install_phantomjs(force = TRUE)
 
 # Load the dataset lhd ---------------------------------------------------
-df <- read_csv(here::here('data', 'kc_house_data.csv'))
+df <- read_csv(here('data', 'kc_house_data.csv'))
 
 # Data wrangling ---------------------------------------------------
 
 # Remove features with a predominant number of zeros ---------------------------------------------------
+status <- df_status(df, print_results = FALSE)
 remove_vars <-  status %>% filter(status$p_zeros > 0.6) %>% pull(variable)
 df <- df %>% select(-one_of(remove_vars))
 
@@ -71,10 +83,9 @@ m <- df %>%
              color = ~bed_pal(bedrooms)) %>%
   addLegend(pal = bed_pal, values = ~bedrooms, title = "# Bedrooms")
 
-webshot::install_phantomjs()
-mapshot(m, file = here::here('images', '1_2_beds.png'))
+mapshot(m, file = here('images', '1_2_beds.png'))
 
-bed_pal <- colorFactor(c("blue", "red"), 3:4)
+bed_pal <- colorFactor(c("#000080", "red"), 3:4)
 m <- df %>% 
   filter(bedrooms > 2 & bedrooms < 5  ) %>% 
   leaflet() %>%
@@ -125,7 +136,7 @@ write_rds(df_train, here::here('data', 'test.rds'))
 # Create cross validation object from training data ---------------------------------------------------
 df_cv <- vfold_cv(df_train)
 
-# Create lm recipe ---------------------------------------------------
+# Create recipe ---------------------------------------------------
 df_rec <- 
   recipe(price ~ ., data = df_train) %>%
   update_role(id, new_role = "ID") %>%
@@ -155,36 +166,27 @@ lm_fit %>%
   tidy()
 toc()
 
-# Predict price using the fitted lm model and visualize---------------------------------------------------
+# Predict price using the fitted lm model -------------------------------------------
 lm_test_res <- 
   predict(lm_fit, new_data = df_test %>% select(-price)) 
 
 lm_test_res <- bind_cols(lm_test_res, df_test %>% select(price))
 
-lm_test_res %>% 
-  ggplot(aes(price, .pred)) + 
-  # Create a diagonal line:
-  geom_abline(lty = 2) + 
-  geom_point(alpha = 0.5) + 
-  labs(y = "Predicted Sale Price (log10)", x = "Sale Price (log10)") +
-  # Scale and size the x- and y-axis uniformly:
-  coord_obs_pred()
-
 # Capture results RMSE & R^2 ---------------------------------------------------
 res_metrics <- metric_set(rmse, rsq)
-results <- res_metrics(lm_test_res, truth = price, estimate = .pred)
-rmse <- results %>% filter(results$.metric == 'rmse') %>% select(.estimate)
-rsq <- results %>% filter(results$.metric == 'rsq') %>% select(.estimate)
+lm_res <- res_metrics(lm_test_res, truth = price, estimate = .pred)
+rmse <- lm_res %>% filter(lm_res$.metric == 'rmse') %>% select(.estimate)
+rsq <- lm_res %>% filter(lm_res$.metric == 'rsq') %>% select(.estimate)
 
 result <- tibble(Method = "Linear Regression Model", RMSE = rmse$.estimate, RSQ = rsq$.estimate)
 
 # clean up
-rm(lm_fit, lm_mod, lm_wflow)
+rm(df, lm_fit, lm_mod, lm_wflow, res_metrics, lm_res, lm_test_res, rmse, rsq)
 
 # Random Forest model ---------------------------------------------------
 
 # Create rf spec ---------------------------------------------------
-  rand_forest(
+rf_spec <- rand_forest(
     mtry = tune(),
     trees = 1000,
     min_n =tune()) %>% 
@@ -197,12 +199,11 @@ rf_wflow <-
   add_model(rf_spec) %>% 
   add_recipe(df_rec)
 
-
 # Tune hyperparameters ---------------------------------------------------
 # The tuning takes a while go get a coffee !
 tic()
 doParallel::registerDoParallel()
-set.seed(123)
+set.seed(12345)
 tune_res <- tune_grid(
   rf_wflow,
   resamples = df_cv,
@@ -256,7 +257,9 @@ final_rf <- finalize_model(
   best_rmse
 )
 
+
 # Random Forest variable importance ----------------------------------------
+# Takes time be patient
 tic()
 final_rf_vip <- final_rf %>%
   set_engine("ranger", importance = "permutation") %>%
@@ -291,12 +294,17 @@ rf_res <- final_wf %>%
   last_fit(df_split)
 toc()
 
+rf_res <- collect_metrics(rf_res)
+
 rmse <- rf_res %>% filter(rf_res$.metric == 'rmse') %>% select(.estimate)
 rsq <- rf_res %>% filter(rf_res$.metric == 'rsq') %>% select(.estimate)
 
 result <- bind_rows(result, tibble(Method = "Random Forest Model",  RMSE = rmse$.estimate, RSQ = rsq$.estimate))
 
 write_rds(rf_res, here::here('data', 'rf_res.rds'))
+
+# Clean up
+rm(regular_res, final_rf_vip, final_rf, rf_grid, rf_res, rf_spec, rf_wflow, rmse, rsq, final_wf, tune_res, best_rmse)
 
 # XGBoost Specification ----------------------------------
 xgb_spec <- boost_tree(
@@ -386,7 +394,7 @@ rm(xgb_vip_gg )
 
 # run the model using the initial split, the results will be evaluated against the test set.
 tic()
-final_res <- last_fit(final_xgb, df_split)
+final_res <- last_fit(final_xgb_wf, df_split)
 toc()
 xgb_res <- collect_metrics(final_res)
 rmse <- xgb_res %>% filter(xgb_res$.metric == 'rmse') %>% select(.estimate)
@@ -395,7 +403,8 @@ rsq <- xgb_res %>% filter(xgb_res$.metric == 'rsq') %>% select(.estimate)
 result <- bind_rows(result, tibble(Method = "XGBoost Model",  RMSE = rmse$.estimate, RSQ = rsq$.estimate))
 
 write_rds(xgb_res, here::here('data', 'xgb_res.rds'))
-
+write_rds(result, here::here('data', 'result.rds'))
+result
  
 
 
