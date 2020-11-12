@@ -1,7 +1,7 @@
 ---
 title: "King County, USA, Housing Prices"
 author: "Nigel Brown"
-date: "2020/10/21"
+date: "2020/11/12"
 output: 
   pdf_document:
     latex_engine: xelatex
@@ -619,7 +619,9 @@ A final workflow is created and then fitted one last time. The fit of the final 
 ```{r echo=FALSE}
 
 final_rf <- read_rds(here::here('data', 'final.rds'))
-final_rf
+
+knitr::kable(final_rf,
+             caption = "Random Forest Model Result Metrics")
 ```
 
 ## XGBoost model
@@ -702,10 +704,19 @@ final_xgb
 
 Before running the finalized XGBoost model, an analysis of the variable importance is performed, the results of which are shown below. In the XGBoost model the longitude of a property is of less importance than in the random forest model.
 
-```{r xgb_vip_plot, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Random forest variable importance'}
+```{r xgb_vip_plot, echo = FALSE, out.width='100%', fig.align='center', fig.cap='XGBoost variable importance'}
 
 knitr::include_graphics(here::here('images', 'xgb_vip.png'))
 
+```
+
+The finalized model is then run using the intital split of data with the evalutaion of the results performed against the test set.
+
+```{r xgb_res, echo=FALSE}
+
+xgb_res <- read_rds(here::here('data', 'xgb_res.rds'))
+knitr::kable(xgb_res,
+             caption = "XGBoost Model Result Metrics")
 ```
 
 
