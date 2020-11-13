@@ -47,9 +47,9 @@ The goal of this project is to predict house prices from the House Sales in King
 The project followed the stages of:
 
 1.  Data Exploration
-2.  Splitting the data into training and test set.
+2.  Splitting the data into training and test set
 3.  Feature extraction and selection of predictors
-4.  Modeling: Linear, randomForest and xgboost
+4.  Modeling: Linear Regression, Random Forest and XGBoost
 5.  Evaluating the models performance and finalizing the results
 
 # Initial data exploration
@@ -132,7 +132,7 @@ df <- df %>% select(-one_of(remove_vars))
 rm(status)
 ```
 
-As is shown in the table above there are no instances of missing data or values being infinite, however there are a number of variables where the percentage of zeros is greater than 60%, these may not be useful for modeling and they may dramatically bias the model. Therefore For this project the decision is made to remove these variables from the dataset. The features removed are: `r remove_vars`.
+As is shown in the table above there are no instances of missing data or values being infinite, however there are a number of variables where the percentage of zeros is greater than 60%, these may not be useful for modeling and they may dramatically bias the model. Therefore for this project the decision is made to remove these variables from the dataset. The features removed are: `r remove_vars`.
 
 Once the predominately zero columns are removed, there are `r ncol(df)` left in the dataset. The date feature is split into year and month features and the original date feature is dropped. It is also decided to convert all variables of type double except bathrooms, lat and long to integer type.
 
@@ -154,7 +154,7 @@ df <- df %>%
 rm(remove_vars, to_convert)
 ```
 
-## Data Anomilies
+## Data Anomalies
 
 ```{r 33_bed_plot, echo = FALSE}
 df %>% 
@@ -184,11 +184,11 @@ df <- df %>%
   mutate(bedrooms = replace(bedrooms, bedrooms==33, 3))
 ```
 
-# Exploritory Data Analysis
+# Exploratory Data Analysis
 
 Now that the data is cleaned it consists of `r nrow(df)` rows of data and `r ncol(df)` columns. An exploratory data analysis is now performed to visualize relationships and patterns in the data.
 
-## How are house prices distributed ?
+## How are house prices distributed?
 
 ```{r price_dist, echo = FALSE}
 df %>% 
@@ -255,7 +255,7 @@ df %>%
         )
 ```
 
-## What condition were the houses in when sold ?
+## What condition were the houses in when sold?
 
 ```{r condition_plot, echo = FALSE}
 
@@ -281,15 +281,15 @@ df %>%
       theme(legend.position = 'none') +
       scale_y_log10(labels = comma) +
       labs(
-        title = "Price ranges based on grades",
+        title = "Price ranges based on condition",
         subtitle = "The average price increases as the condition increases",
-        x = 'House Grade', 
+        x = 'House Condition', 
         y = 'Price USD (log 10)'
         )
 ```
 
 
-## Which grade of houses sold the most ?
+## Which grade of houses sold the most?
 
 ```{r grade_plot, echo = FALSE}
 
@@ -341,6 +341,10 @@ df %>%
 
 ```
 
+<div style="page-break-after: always; visibility: hidden"> 
+\pagebreak 
+</div>
+
 ## Spatial analysis plots
 
 ### Where are the sales located within King County?
@@ -364,7 +368,7 @@ knitr::include_graphics(here::here('images', '5plus_beds.png'))
 
 ```
 
-## Are the sales evenly spread across the county ?
+## Are the sales evenly spread across the county?
 
 ```{r sales_per_zipcode, echo = FALSE}
 df %>% 
@@ -381,7 +385,7 @@ df %>%
   )
 ```
 
-## Does price increase as the lot area gets larger ?
+## Does price increase as the lot area gets larger?
 
 ```{r lot_price_plot, echo = FALSE, message=FALSE}
 df %>% 
@@ -398,7 +402,7 @@ ggplot( aes(x = sqft_lot, y = price)) +
     y = "Price USD")
 ```
 
-## Does price increase as the interior area gets larger ?
+## Does price increase as the interior area gets larger?
 
 ```{r living_price_plot, echo = FALSE, message=FALSE}
 df %>% 
@@ -439,7 +443,7 @@ The matrix indicates some correlation between price and:
 
 -   **sqft\_ features**, logically this makes sense as the more space a property has normally equates to a higher price
 -   **grade**, again this makes sense as the better condition a property is in, demands a higher price.
--   **bathrooms**: the number of bathrooms correlates with the price, this is probably due to the space needed to have multiple bathrooms in a property.
+-   **bathrooms**, the number of bathrooms correlates with the price, this is probably due to the space needed to have multiple bathrooms in a property.
 
 
 # Methods/Analysis
@@ -719,12 +723,16 @@ knitr::kable(xgb_res,
              caption = "XGBoost Model Result Metrics")
 ```
 
-
-
-
-
-
-
 # Results
+
+Collating the results from the three different models into a single table, we see that the XGBoost model performs marginally better than the random forest model, with the linear regression model producing the worst results.
+
+```{r results, echo=FALSE}
+
+result <- read_rds(here::here('data', 'result.rds'))
+
+knitr::kable(result,
+             caption = "Model Comparison Metrics")
+```
 
 # Conclusion
