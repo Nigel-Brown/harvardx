@@ -1,6 +1,5 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
-
 <script type="text/javascript">
 code .sourceCode {
     white-space: pre-wrap;       /* Since CSS 2.1 */
@@ -24,5 +23,5 @@ The submission for this project is three files:
 3.  A script in R format that performs a supervised machine learning
     task
 
-This files may be found in the directory titled Submission. The dataset
+This files may be found in the directory titled CYOP. The dataset
 utilized in this project is located in the data directory.
