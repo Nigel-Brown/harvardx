@@ -736,3 +736,6 @@ knitr::kable(result,
 ```
 
 # Conclusion
+
+In conclusion the dataset enabled models to be trained that performed with a fairly high degree of accuracy. The linear regression model although it produces the forecasts with the highest margin of error, still enables very quick predictions to be made with very little set up involved. 
+The random forest model was the most involved process to produce forecasts due to the tuning and re-tuning of the hyperparameters. The extra effort involved did have a payoff as the results improved, however the third method XGBoost had the best results with minimal effort required to build and tune the model and would be the recommended model methodology.
