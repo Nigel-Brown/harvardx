@@ -48,5 +48,5 @@ The submission for this project is three files:
 1. A report in Rmd format
 1. A script in R format that performs a supervised machine learning task
 
-This files may be found in the directory titled Submission.
+This files may be found in the directory titled CYOP.
 The dataset utilized in this project is located in the data directory.

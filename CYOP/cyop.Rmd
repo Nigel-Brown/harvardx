@@ -1,0 +1,741 @@
+---
+title: "King County, USA, Housing Prices"
+author: "Nigel Brown"
+date: "2020/11/12"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+    fig_caption: yes
+    toc: yes
+    toc_depth: 2
+    number_sections: yes
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10)
+
+repos <- 'https://cran.rstudio.com/'
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = repos)
+if(!require(tidymodels)) install.packages("tidymodels", repos = repos)
+if(!require(scales)) install.packages("scales", repos = repos)
+if(!require(funModeling)) install.packages("funModeling", repos = repos)
+if(!require(lubridate)) install.packages("lubridate", repos = repos)
+if(!require(corrplot)) install.packages("corrplot", repos = repos)
+if(!require(tictoc)) install.packages("tictoc", repos = repos)
+if(!require(vip)) install.packages("vip", repos = repos)
+
+rm(repos)
+
+# set theme for charts
+theme_set(theme_minimal())
+
+# load the dataset 
+df <- read_csv(here::here('data', 'kc_house_data.csv'))
+```
+
+<div style="page-break-after: always; visibility: hidden"> 
+\pagebreak 
+</div>
+
+
+# Introduction
+
+The goal of this project is to predict house prices from the House Sales in King County, USA dataset downloaded from [kaggle](https://www.kaggle.com/harlfoxem/housesalesprediction).
+
+The project followed the stages of:
+
+1.  Data Exploration
+2.  Splitting the data into training and test set
+3.  Feature extraction and selection of predictors
+4.  Modeling: Linear Regression, Random Forest and XGBoost
+5.  Evaluating the models performance and finalizing the results
+
+# Initial data exploration
+
+The dataset consists of house prices in King County, Washington, USA from observed sales between May 2014 and May 2015. The data consists of `r nrow(df)` rows of data, each row observes a single sale. There are `r ncol(df)` features in the dataset. The features are:
+
+
++----------------+------------------------------------------------------------------------------+
+| Variable       | Description                                                                  |
++================+==============================================================================+
+| id             | Unique ID for each sale                                                      |
++----------------+------------------------------------------------------------------------------+
+| date           | Date of the observed sale                                                    |
++----------------+------------------------------------------------------------------------------+
+| price          | Price of each house sold in USD                                              |
++----------------+------------------------------------------------------------------------------+
+| bedrooms       | Number of bedrooms                                                           |
++----------------+------------------------------------------------------------------------------+
+| bathrooms      | A full bathroom consists of bath, shower, sink, toilet. Each are scored 0.25 |
++----------------+------------------------------------------------------------------------------+
+| sqft living    | Square footage of the interior living space of the house                     |
++----------------+------------------------------------------------------------------------------+
+| sqft lot       | Square footage of the land area the house resides on                         |
++----------------+------------------------------------------------------------------------------+
+| floors         | Number of floors, 0.5 is an attic or mezzanine level                         |
++----------------+------------------------------------------------------------------------------+
+| waterfront     | Does the house overlook the waterfront front                                 |
++----------------+------------------------------------------------------------------------------+
+| view           | An index from 0 to 4 of how good the view of the property is                 |
++----------------+------------------------------------------------------------------------------+
+| condition      | An index from 1 to 5 on the condition of the house when sold                 |
++----------------+------------------------------------------------------------------------------+
+| grade          | An index from 1 to 13 of the construction and design                         |
++----------------+------------------------------------------------------------------------------+
+| sqrt above     | Square footage of the interior housing space above ground level              |
++----------------+------------------------------------------------------------------------------+
+| sqrt basement  | Square footage of the interior housing space below ground level              |
++----------------+------------------------------------------------------------------------------+
+| yr_built       | the year the house was built                                                 |
++----------------+------------------------------------------------------------------------------+
+| yr_renovated   | the year of the house's last renovation                                      |
++----------------+------------------------------------------------------------------------------+
+| zipcode        | the area zip code where the house is situated                                |
++----------------+------------------------------------------------------------------------------+
+| lat            | Latitude                                                                     |
++----------------+------------------------------------------------------------------------------+
+| long           | Longitude                                                                    |
++----------------+------------------------------------------------------------------------------+
+| sqft_living15  | The square footage of the interior living space for the closest 15 neighbors |
++----------------+------------------------------------------------------------------------------+
+| sqft_lot15     | The square footage of land for the closest 15 neighbors' houses              |
++----------------+------------------------------------------------------------------------------+
+
+## Data status
+
+The next step is to analyze the data for missing values. For this analysis the [df_status](https://www.rdocumentation.org/packages/funModeling/versions/1.9.4/topics/df_status) function from the [funModelling](https://www.rdocumentation.org/packages/funModeling/versions/1.9.4) package is utilized.
+
+```{r data_status, echo = FALSE}
+
+status <- df_status(df, print_results = FALSE)
+knitr::kable(status,
+             caption = "Dataset status") 
+
+```
+
+-   **q_zeros:** quantity of zeros (p_zeros: in percent)
+-   **q_inf:** quantity of infinite values (p_inf: in percent)
+-   **q_na:** quantity of NA (p_na: in percent)
+-   **type:** the variable type
+-   **unique:** quantity of unique values
+
+# Data Preprocessing
+
+```{r remove_vars, include=FALSE, dependson=status}
+
+remove_vars <-  status %>% filter(status$p_zeros > 0.6) %>% pull(variable)
+
+df <- df %>% select(-one_of(remove_vars))
+
+rm(status)
+```
+
+As is shown in the table above there are no instances of missing data or values being infinite, however there are a number of variables where the percentage of zeros is greater than 60%, these may not be useful for modeling and they may dramatically bias the model. Therefore for this project the decision is made to remove these variables from the dataset. The features removed are: `r remove_vars`.
+
+Once the predominately zero columns are removed, there are `r ncol(df)` left in the dataset. The date feature is split into year and month features and the original date feature is dropped. It is also decided to convert all variables of type double except bathrooms, lat and long to integer type.
+
+```{r data_preprocessing, echo = FALSE}
+
+df <- df %>% 
+  mutate(year = year(date),
+         month = month(date)) %>% 
+  select(-date)
+
+to_convert <- df %>% 
+  select(-c('id', 'bedrooms', 'bathrooms', 'lat', 'long')) %>% 
+  colnames()
+
+df <- df %>% 
+  mutate_at(to_convert, as.integer)
+
+# clean up
+rm(remove_vars, to_convert)
+```
+
+## Data Anomalies
+
+```{r 33_bed_plot, echo = FALSE}
+df %>% 
+  ggplot(aes(bedrooms, price, color = ifelse(bedrooms < 20,'steelblue', 'red'))) +
+  geom_point(size = 2, alpha = 0.6, show.legend = FALSE) + 
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "The relationship between bedrooms and price",
+    subtitle = "1 property with 33 bedrooms and 13 properties with 0?",
+    y = "Price USD",
+    x = "Number of bedrooms"
+  )
+```
+
+```{r anomaly_table, echo = FALSE}
+
+knitr::kable(df %>% filter(bedrooms == 33 | bedrooms == 0) %>% 
+  select(id, price, bedrooms, bathrooms, floors, sqft_living),
+  caption = 'Anomalous Data')
+
+```
+Exploring the data it is found that a single property has been listed with 33 bedrooms. This property is re-entered as a 3 bedroom property. Also 13 properties are listed with zero bedrooms, as these properties range in size and there is no obvious method of reincorporating these properties in the data with a bedroom count that is explainable, these properties are dropped from the data.
+
+```{r anomalies, echo = FALSE}
+df <- df %>% 
+  filter(bedrooms != 0) %>% 
+  mutate(bedrooms = replace(bedrooms, bedrooms==33, 3))
+```
+
+# Exploratory Data Analysis
+
+Now that the data is cleaned it consists of `r nrow(df)` rows of data and `r ncol(df)` columns. An exploratory data analysis is now performed to visualize relationships and patterns in the data.
+
+## How are house prices distributed?
+
+```{r price_dist, echo = FALSE}
+df %>% 
+  ggplot( aes(x = price)) + 
+  geom_density(fill = 'steelblue', color = 'black') +
+  scale_x_continuous(labels = comma) +
+  scale_y_continuous() +
+  labs(
+    title = "House prices are right skewed.",
+    subtitle = "There are more inexpensive houses than expensive ones.",
+    x = 'Price USD',
+    y = NULL
+  )
+```
+
+```{r price_log_dist, echo = FALSE}
+df%>% 
+  ggplot(aes(price)) + 
+  geom_histogram(bins = 20, fill = 'steelblue', color = 'black') + 
+  scale_x_log10(label = comma) +
+  scale_y_log10(label = comma) +
+  labs(
+    title = "House prices appear to be log-normally distributed",
+    x = 'Price (log10) USD',
+    y = NULL
+  )
+```
+
+A strong argument can be made that the price should be log-transformed. The advantages of doing this are that no houses would be predicted with negative sale prices and that errors in predicting expensive houses will not have an undue influence on the model. Also, from a statistical perspective, a logarithmic transform may also stabilize the variance in a way that makes inference more legitimate. When the models are built a final pre-processing step of transforming the prices into logs will be performed.
+
+## How many houses of each bedroom count were sold?
+
+```{r bedroom_sales, echo = FALSE}
+
+df %>% 
+  group_by(bedrooms) %>% 
+  summarise(number_of_sales = n(), .groups = 'drop') %>% 
+  ggplot(aes(bedrooms, number_of_sales )) +
+  geom_col(color = "black", fill = "steelblue") +
+  labs(
+    title = "4 bedroom houses sell more often than other house sizes",
+    subtitle = "3 bedroom houses are the next most frequently sold",
+    x = "Number of bedrooms",
+    y = "Number of observed sales"
+  )
+  
+```
+
+### Price to number of bedroom relationship
+
+```{r price_per_bedroom, echo = FALSE}
+
+df %>% 
+ ggplot(aes(x = as.factor(bedrooms), y = price)) +
+      geom_boxplot(color = 'steelblue', outlier.alpha = 0.4) +
+      geom_boxplot(color = 'darkcyan', size = 0.5) +
+      theme(legend.position = 'none') +
+      scale_y_log10(labels = comma) +
+      labs(
+        title = "Price ranges based on bedrooms",
+        subtitle = "The average price increases as the number of bedrooms increase",
+        x = 'Number of bedrooms', 
+        y = 'Price USD (log 10)'
+        )
+```
+
+## What condition were the houses in when sold?
+
+```{r condition_plot, echo = FALSE}
+
+df %>% 
+  group_by(condition) %>% 
+  summarise(number_of_sales = n(), .groups = 'drop') %>% 
+  ggplot(aes(condition, number_of_sales )) +
+  geom_col(color = "black", fill = "steelblue") +
+  labs(
+    title = "The are very few below average condition house sales",
+    x = "House Condition",
+    y = "Number of observed sales"
+  )
+```
+
+### Price to house condition relationship
+
+```{r price_condition, echo = FALSE}
+
+df %>% 
+ ggplot(aes(x = as.factor(condition), y = price)) +
+      geom_boxplot(color = 'steelblue', outlier.alpha = 0.5) +
+      theme(legend.position = 'none') +
+      scale_y_log10(labels = comma) +
+      labs(
+        title = "Price ranges based on condition",
+        subtitle = "The average price increases as the condition increases",
+        x = 'House Condition', 
+        y = 'Price USD (log 10)'
+        )
+```
+
+
+## Which grade of houses sold the most?
+
+```{r grade_plot, echo = FALSE}
+
+df %>% 
+  group_by(grade) %>% 
+  summarise(number_of_sales = n(), .groups = 'drop') %>% 
+  ggplot(aes(grade, number_of_sales )) +
+  geom_col(color = "black", fill = "steelblue") +
+  labs(
+    title = "Houses graded 7 or higher are the most frequently sold",
+    x = "House grade",
+    y = "Number of observed sales"
+  )
+```
+
+### Price to house grade relationship
+
+```{r price_grade, echo = FALSE}
+
+df %>% 
+ ggplot(aes(x = as.factor(grade), y = price)) +
+      geom_boxplot(color = 'steelblue', outlier.alpha = 0.5) +
+      theme(legend.position = 'none') +
+      scale_y_log10(labels = comma) +
+      labs(
+        title = "Price ranges based on grades",
+        subtitle = "The average price increases as the grade increases",
+        x = 'House Grade', 
+        y = 'Price USD (log 10)'
+        )
+```
+
+## Is there a month when most sales occur?
+
+```{r month_sales, echo = FALSE}
+df %>% 
+  group_by(month) %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
+  ggplot(aes(month, n)) + 
+  geom_col(show.legend = FALSE, fill = 'steelblue') +
+  scale_x_discrete(limits = c('Jan', "Feb", "Mar", "Apr", "May",
+                              "Jun", "Jul", "Aug", "Sep", "Oct",
+                              "Nov", "Dec")) +
+  labs(
+    title = "May is the most popular for house purchases",
+    x = NULL,
+    y = "Number of sale transactions"
+   )
+
+```
+
+<div style="page-break-after: always; visibility: hidden"> 
+\pagebreak 
+</div>
+
+## Spatial analysis plots
+
+### Where are the sales located within King County?
+
+
+```{r maps, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location of 1 and 2 bedroom houses sold'}
+
+knitr::include_graphics(here::here('images', '1_2_beds.png'))
+
+```
+
+```{r maps2, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location of 3 and 4 bedroom houses sold'}
+
+knitr::include_graphics(here::here('images', '3_4_beds.png'))
+
+```
+
+```{r maps3, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Location of 5 or more bedroom houses sold'}
+
+knitr::include_graphics(here::here('images', '5plus_beds.png'))
+
+```
+
+## Are the sales evenly spread across the county?
+
+```{r sales_per_zipcode, echo = FALSE}
+df %>% 
+  group_by(zipcode) %>% 
+  summarise(n = n(), .groups = 'drop') %>% 
+  ggplot(aes(reorder(zipcode, -n), n)) +
+  geom_col(color = "black", fill = 'steelblue') +
+  theme(axis.text.x  = element_text(angle=-90, hjust=0)) +
+  labs(
+    title = "Number of observed sales by zipcode",
+    subtitle = "Sales are not uniformly spread across the zipcodes",
+    x= "Zip code",
+    y = "Properties sold"
+  )
+```
+
+## Does price increase as the lot area gets larger?
+
+```{r lot_price_plot, echo = FALSE, message=FALSE}
+df %>% 
+ggplot( aes(x = sqft_lot, y = price)) + 
+  geom_point(alpha = 0.5, color = "steelblue") + 
+  # Show a simple linear model fit 
+  geom_smooth(method = lm, color = "black") + 
+  scale_y_log10()+
+  scale_x_log10(labels = comma)+
+  labs(
+    title = "Relationship between lot area and house price",
+    subtitle = "Both axes are in log10 scale",
+    x = "Lot area in square feet",
+    y = "Price USD")
+```
+
+## Does price increase as the interior area gets larger?
+
+```{r living_price_plot, echo = FALSE, message=FALSE}
+df %>% 
+ggplot( aes(x = sqft_living, y = price)) + 
+  geom_point(alpha = 0.4, color = 'steelblue') + 
+  # Show a simple linear model fit 
+  geom_smooth(method = lm, color = "black") + 
+  scale_y_log10()+
+  scale_x_log10(labels = comma)+
+  labs(
+    title = "Relationship between interior living space and house price",
+    subtitle = "Both axes are in log10 scale",
+    x = "Living space in square feet",
+    y = "Price USD")
+```
+
+## How are the features correlated ?
+
+```{r corrplot, echo = FALSE, fig.width = 10}
+library(corrplot)
+
+M <- df %>% select(-id) %>% cor()
+par(cex=0.7)
+corrplot.mixed(M,
+        upper = "circle",
+        lower = "number",
+        tl.pos = "lt",
+        tl.cex = 1,
+        cl.cex = 1,
+        diag = "u",
+        lower.col = "black"
+        )
+# clean up
+rm(M)
+```
+
+The matrix indicates some correlation between price and:
+
+-   **sqft\_ features**, logically this makes sense as the more space a property has normally equates to a higher price
+-   **grade**, again this makes sense as the better condition a property is in, demands a higher price.
+-   **bathrooms**, the number of bathrooms correlates with the price, this is probably due to the space needed to have multiple bathrooms in a property.
+
+
+# Methods/Analysis
+
+## Data split
+
+The first step is to split the data into training and testing datasets. The split will be an 80/20 split with 80% of the data in the training set and the remaining 20% in the test set. The split of the data is stratified by district, to ensure that the number of data points in the training data is equivalent to the proportions in the original data set.
+
+Parameter tuning will be performed, when modeling and to do that cross-validation is used. A cross-validated version of the training set is created in preparation for the parameter tuning.
+As the training and test set are stored in two separate dataframes this ensures that information leakages do not accidentally occur.
+
+## Linear Regression model
+
+A model is built using price as the outcome, the id column is unused and the remaining features are predictors. A recipe is created using the [tidymodels](https://www.tidymodels.org/) package.
+The predictors that start with **sqft_** are transformed into log10 values to coincide with the price log transformation. The data is grouped for **bedrooms, bathrooms and zipcodes** where the value in the data is less than 1% of the data set into a variable value 'other'.
+
+
+```{r recipe, echo=FALSE}
+df_train <- read_rds(here::here('data', 'train.rds'))
+df_test <- read_rds(here::here('data', 'test.rds'))
+
+df_rec <- 
+  recipe(price ~ ., data = df_train) %>%
+  update_role(id, new_role = "ID") %>%
+  step_other(c(bedrooms,bathrooms, zipcode), threshold = 0.01) %>% 
+  step_log(starts_with("sqft_"), base = 10) %>% 
+  prep()
+
+df_rec
+
+```
+
+Once the recipe is created, a specification is defined using **lm** as the engine for the linear regression model. Finally both the model and recipe are added to a workflow.
+
+```{r workflow, echo=FALSE}
+# create model
+lm_mod <- linear_reg() %>% 
+  set_engine("lm")
+
+# create workflow
+lm_wflow <- workflow() %>% 
+  add_model(lm_mod) %>% 
+  add_recipe(df_rec)
+```
+
+
+This workflow is then used to fit the model using the training dataset. The result of the data fit is shown below:
+
+```{r lm_fit, echo=FALSE}
+set.seed(12345)
+lm_fit <- 
+  lm_wflow %>% 
+  fit(data = df_train)
+
+lm_fit %>% 
+  pull_workflow_fit() %>% 
+  tidy()
+```
+
+
+```{r lm_test_res, echo=FALSE}
+lm_test_res <- 
+  predict(lm_fit, new_data = df_test %>% select(-price)) 
+lm_test_res <- bind_cols(lm_test_res, df_test %>% select(price))
+```
+
+The model fit is next used to predict house prices and plot, the accuracy of the predictions is shown via the metrics rmse (Root mean square error, the standard deviation of the prediction errors), rsq (R^2 a measure that represents the proportion of the variance for a dependent variable that's explained by an independent variable or variables in a regression model) and mae (mean absolute error, the average of all absolute errors).
+
+```{r plot_res, echo=FALSE}
+lm_test_res %>% 
+  ggplot(aes(price, .pred)) + 
+  # Create a diagonal line:
+  geom_abline(lty = 2) + 
+  geom_point(alpha = 0.4, color = 'steelblue') + 
+  labs(y = "Predicted Sale Price (log10)", x = "Sale Price (log10)") +
+  # Scale and size the x- and y-axis uniformly:
+  coord_obs_pred()
+```
+
+```{r lm_metrics, echo=FALSE}
+
+res_metrics <- metric_set(rmse, rsq, mae)
+lm_res_metrics <- res_metrics(lm_test_res, truth = price, estimate = .pred)
+knitr::kable(lm_res_metrics,
+             caption = "Linear Regression Model Result Metrics")
+```
+
+## Random Forest model
+
+Next a random forest specification is created, the mtry (the number of predictors to sample at each split) and min_n (the number of observations needed to keep splitting nodes) hyperparameters will be tuned. The engine used is **Ranger** and the mode is set as regression. The specification and recipe are then added to a random forest workflow.
+
+
+```{r rf_spec, echo=FALSE}
+rf_spec <- 
+  rand_forest(
+    mtry = tune(),
+    trees = 1000,
+    min_n =tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+rf_wflow <- 
+  workflow() %>% 
+  add_model(rf_spec) %>% 
+  add_recipe(df_rec)
+
+rf_wflow
+```
+
+To tune the hyperparameters the cross validation folds created earlier will be utilized and a tuning grid of 20 candidate parameter sets to be created automatically.  The result of the first tuning can be plotted and shows that the min_n seems best at values under 10 and the mtry is best at values over 4.
+
+```{r plot_tune_res, echo=FALSE}
+tune_res <- read_rds(here::here('data', 'tune_res.rds'))
+tune_res %>%
+  collect_metrics() %>% 
+  filter(.metric == "rsq") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+               values_to = "value",
+               names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  theme_light() +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "RSQ")
+
+```
+
+Using this information a new regular grid is created, with the mtry and min_n being tuned again using a pre-defined range of values.
+```{r grid_regular, echo=FALSE}
+rf_grid <- grid_regular(
+  mtry(range = c(4, 20)),
+  min_n(range = c(2, 10)),
+  levels = 5
+)
+
+knitr::kable(rf_grid, caption = 'Regular grid for tuning hyperparameters')
+```
+
+The result of the re-tuning of the hyperparameters is shown below:
+
+```{r, best_rmse, echo=FALSE}
+
+best_rmse <- read_rds(here::here('data', 'best.rds'))
+best_rmse
+
+```
+
+Using these values the model is finalized, by updating the original specification created before tuning.
+
+```{r final_rf, echo=FALSE}
+
+final_rf <- finalize_model(
+  rf_spec,
+  best_rmse
+)
+
+final_rf
+```
+
+Now that the specification is finalized the **vip** package is used to visualize the variable importance within the model. Variable importance shows the latitude and longitude i.e. the location of a property has very high importance, as do the grade, year a property was built and the square footage of the living area.
+
+```{r vip_plot, echo = FALSE, out.width='100%', fig.align='center', fig.cap='Random forest variable importance'}
+
+knitr::include_graphics(here::here('images', 'vip.png'))
+
+```
+
+<div style="page-break-after: always; visibility: hidden"> 
+\pagebreak 
+</div>
+
+A final workflow is created and then fitted one last time. The fit of the final model is on the entire training set and evaluated against the testing set, for this the original split is used. 
+
+
+```{r echo=FALSE}
+
+final_rf <- read_rds(here::here('data', 'final.rds'))
+
+knitr::kable(final_rf,
+             caption = "Random Forest Model Result Metrics")
+```
+
+## XGBoost model
+
+As a final model to predict the housing prices, an XGBoost model will be created. This model is based on trees and allows for multiple hyperparameters to be tuned. The initial step is to create a specification. 
+
+```{r xgb_spec, echo=FALSE}
+
+xgb_spec <- boost_tree(
+  trees = 1000, 
+  tree_depth = tune(), 
+  min_n = tune(), 
+  loss_reduction = tune(),                     
+  sample_size = tune(),
+  mtry = tune(),        
+  learn_rate = tune(),                        
+) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+
+xgb_spec
+
+```
+
+Once the specification is created, a space-filling parameter grid is defined using [latin hypercube sampling](https://en.wikipedia.org/wiki/Latin_hypercube_sampling). In the workflow, a formula can be used due to the lack of pre-processing of data.
+
+```{R xgb_wf, echo=FALSE}
+xgb_wf <- workflow() %>%
+  add_formula(price ~ bedrooms + bathrooms + sqft_living + sqft_lot +
+  floors + condition + grade + sqft_above + yr_built + zipcode + lat +
+  long  + sqft_living15 + sqft_lot15 + year + month) %>%
+  add_model(xgb_spec)
+
+xgb_wf
+```
+
+The hyperparameters are tuned using the workflow, specification and the cross validation folds that were created previously. The metrics from the tuning results are displayed below
+
+```{r xgb_tune_res, echo=FALSE}
+
+xgb_metrics <- read_rds(here::here('data', 'xgb_metrics.rds'))
+xgb_metrics  %>%
+  filter(.metric == "rsq") %>%
+  select(mean, mtry:sample_size) %>%
+  pivot_longer(mtry:sample_size,
+               values_to = "value",
+               names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  theme_light() +
+  labs(x = NULL, y = "rsq")
+
+
+```
+
+There appear to be a number of parameter combinations that perform well, they are displayed in table below.
+
+```{r xgb_best, echo=FALSE}
+xgb_best <- read_rds(here::here('data', 'xgb_best.rds'))
+xgb_best_summary <- xgb_best %>% select(-c('.metric', 'mean', 'n', '.estimator', 'std_err'))
+
+knitr::kable(xgb_best_summary,
+             caption = "The best combinations of hyperparameters for the XGBoost model")
+```
+
+The XGBoost workflow is finalized using the best parameter set.
+
+```{r final_xgb_wf, echo=FALSE}
+best_rsq <- read_rds(here::here('data', 'xgb_best_rsq.rds'))
+
+final_xgb <- finalize_workflow(
+  xgb_wf,
+  best_rsq
+)
+
+final_xgb
+```
+
+Before running the finalized XGBoost model, an analysis of the variable importance is performed, the results of which are shown below. In the XGBoost model the longitude of a property is of less importance than in the random forest model.
+
+```{r xgb_vip_plot, echo = FALSE, out.width='100%', fig.align='center', fig.cap='XGBoost variable importance'}
+
+knitr::include_graphics(here::here('images', 'xgb_vip.png'))
+
+```
+
+The finalized model is then run using the intital split of data with the evalutaion of the results performed against the test set.
+
+```{r xgb_res, echo=FALSE}
+
+xgb_res <- read_rds(here::here('data', 'xgb_res.rds'))
+knitr::kable(xgb_res,
+             caption = "XGBoost Model Result Metrics")
+```
+
+# Results
+
+Collating the results from the three different models into a single table, we see that the XGBoost model performs marginally better than the random forest model, with the linear regression model producing the worst results.
+
+```{r results, echo=FALSE}
+
+result <- read_rds(here::here('data', 'result.rds'))
+
+knitr::kable(result,
+             caption = "Model Comparison Metrics")
+```
+
+# Conclusion
+
+In conclusion the dataset enabled models to be trained that performed with a fairly high degree of accuracy. The linear regression model although it produces the forecasts with the highest margin of error, still enables very quick predictions to be made with very little set up involved. 
+The random forest model was the most involved process to produce forecasts due to the tuning and re-tuning of the hyperparameters. The extra effort involved did have a payoff as the results improved, however the third method XGBoost had the best results with minimal effort required to build and tune the model and would be the recommended model methodology.
