@@ -229,8 +229,8 @@ df %>%
   ggplot(aes(bedrooms, number_of_sales )) +
   geom_col(color = "black", fill = "steelblue") +
   labs(
-    title = "4 bedroom houses sell more often than other house sizes",
-    subtitle = "3 bedroom houses are the next most frequently sold",
+    title = "3 bedroom houses sell more often than other house sizes",
+    subtitle = "4 bedroom houses are the next most frequently sold",
     x = "Number of bedrooms",
     y = "Number of observed sales"
   )
@@ -450,7 +450,7 @@ The matrix indicates some correlation between price and:
 
 ## Data split
 
-The first step is to split the data into training and testing datasets. The split will be an 80/20 split with 80% of the data in the training set and the remaining 20% in the test set. The split of the data is stratified by district, to ensure that the number of data points in the training data is equivalent to the proportions in the original data set.
+The first step is to split the data into training and testing datasets. The split will be an 80/20 split with 80% of the data in the training set and the remaining 20% in the test set. The split of the data is stratified by price, to ensure that the number of data points in the training data is equivalent to the proportions in the original data set.
 
 Parameter tuning will be performed, when modeling and to do that cross-validation is used. A cross-validated version of the training set is created in preparation for the parameter tuning.
 As the training and test set are stored in two separate dataframes this ensures that information leakages do not accidentally occur.
